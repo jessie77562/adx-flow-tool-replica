@@ -19,8 +19,8 @@ a { color: inherit; text-decoration: none; }
 .top-menu { width: 44px; height: 32px; margin: 0 7px; border: 0; border-radius: 2px; background: white; color: #33394b; font-size: 17px; }
 .brand { width: 199px; font-size: 18px; white-space: nowrap; transition: width .2s; }
 .topbar nav { height: 100%; display: flex; }
-.topbar nav a { display: flex; align-items: center; padding: 0 20px; border-left: 1px solid #252b3d; color: #aeb2bd; }
-.topbar nav a:hover { background: #343b52; color: white; }
+.topbar nav button { display: flex; align-items: center; padding: 0 20px; border: 0; border-left: 1px solid #252b3d; background: transparent; color: #aeb2bd; }
+.topbar nav button:hover { background: #343b52; color: white; }
 
 .sidebar { position: fixed; z-index: 10; top: 49px; bottom: 0; left: 0; width: 250px; overflow-y: auto; border-right: 1px solid #ddd; background: white; transition: transform .2s; }
 .profile { height: 82px; display: flex; align-items: flex-start; justify-content: center; padding-top: 23px; border-bottom: 1px solid var(--line); }
@@ -50,6 +50,8 @@ input:disabled { background: #f5f5f5; color: #888; }
 .primary:hover { border-color: var(--pink-dark); background: var(--pink-dark); }
 .secondary { border: 1px solid #d6d8dc; background: white; color: #555; }
 .secondary:hover { color: var(--pink); border-color: var(--pink); }
+.primary:disabled, .secondary:disabled { cursor: not-allowed; opacity: .5; }
+.secondary:disabled:hover { border-color: #d6d8dc; color: #555; }
 
 .groups { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin: 12px 0 26px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
 .group-item { position: relative; min-height: 45px; display: flex; align-items: center; color: #8b9098; }
@@ -79,11 +81,16 @@ input:disabled { background: #f5f5f5; color: #888; }
 .toggle.on { background: var(--pink); }
 .toggle.on span { transform: translateX(20px); }
 
+.pid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.pid-toolbar-actions { display: flex; align-items: center; gap: 12px; }
+.selection-summary { color: var(--pink); font-size: 13px; }
 .table-wrap { width: 100%; overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); }
-table { width: 100%; min-width: 1420px; border-collapse: collapse; background: white; color: #4a4e55; font-size: 13px; }
+table { width: 100%; min-width: 1470px; border-collapse: collapse; background: white; color: #4a4e55; font-size: 13px; }
 th, td { height: 47px; padding: 9px 11px; border-right: 1px solid #f0f0f0; border-bottom: 1px solid #eceef0; text-align: center; white-space: nowrap; }
 th { background: #fafafa; color: #4b4f56; font-weight: 600; }
-th:nth-child(2), td:nth-child(2) { min-width: 220px; text-align: left; }
+th:nth-child(3), td:nth-child(3) { min-width: 220px; text-align: left; }
+.selection-cell { width: 46px; min-width: 46px; padding-right: 6px; padding-left: 6px; text-align: center; }
+.selection-cell input { width: 16px; height: 16px; accent-color: var(--pink); cursor: pointer; }
 tr:last-child td { border-bottom: 0; }
 .summary-row td { background: #fafbfc; }
 .help { width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center; margin-left: 5px; border: 1px solid #b7bbc2; border-radius: 50%; color: #9ca0a7; font-size: 10px; cursor: help; }
@@ -111,6 +118,22 @@ tr:last-child td { border-bottom: 0; }
 .field input:not([type="radio"]), .field select { width: 100%; }
 .field small { display: block; margin-top: 5px; color: #999da3; font-size: 12px; }
 .field .counter { position: absolute; right: 9px; top: 4px; background: white; }
+.batch-selection-tip { display: flex; align-items: center; gap: 4px; padding: 13px 15px; border: 1px solid #f1cada; border-radius: 4px; background: #fff8fb; color: #555a61; }
+.batch-selection-tip strong { color: var(--pink); font-size: 18px; }
+.batch-selection-tip span { margin-left: auto; color: #979ba1; font-size: 12px; }
+.batch-operation-list { display: grid; gap: 9px; }
+.batch-option { min-height: 57px; display: flex; align-items: center; gap: 11px; padding: 10px 13px; border: 1px solid #e1e2e5; border-radius: 4px; background: white; cursor: pointer; }
+.batch-option:has(input:checked) { border-color: var(--pink); background: #fff8fb; box-shadow: 0 0 0 1px rgb(235 104 173 / 8%); }
+.batch-option.unavailable { cursor: not-allowed; opacity: .52; }
+.batch-option input { width: 16px; height: 16px; accent-color: var(--pink); }
+.batch-option > span { display: grid; gap: 2px; }
+.batch-option strong { color: #474b52; font-size: 14px; }
+.batch-option small { margin: 0; }
+.currency-input { display: flex; align-items: center; height: 36px; border: 1px solid #d9dadd; border-radius: 3px; background: white; }
+.currency-input:focus-within { border-color: var(--pink); box-shadow: 0 0 0 2px rgb(235 104 173 / 12%); }
+.currency-input > span { padding: 0 10px; border-right: 1px solid #ececef; color: #666b72; }
+.currency-input input { height: 34px !important; border: 0; box-shadow: none !important; }
+.field-error { margin-left: 118px; padding: 9px 12px; border-radius: 3px; background: #fff1f3; color: #db4965; font-size: 13px; }
 .rule-editor, .pid-list { display: grid; gap: 10px; }
 .rule-row { display: grid; grid-template-columns: 110px 105px 1fr 32px; gap: 7px; }
 .rule-row button, .pid-row button { border: 0; background: transparent; color: #a2a5aa; font-size: 18px; }
@@ -145,12 +168,17 @@ tr:last-child td { border-bottom: 0; }
   .push-right { margin-left: 0; }
   .field { grid-template-columns: 1fr; gap: 5px; }
   .field > span { text-align: left; }
+  .field-error { margin-left: 0; }
 }
 @media (max-width: 650px) {
   .sidebar { transform: translateX(-210px); }
   .content { margin-left: 0; }
   .app-shell:not(.collapsed) .sidebar { transform: translateX(0); box-shadow: 10px 0 30px rgb(0 0 0 / 13%); }
   .filters { display: grid; }
+  .pid-toolbar { align-items: stretch; flex-direction: column; }
+  .pid-toolbar-actions { justify-content: space-between; }
+  .batch-selection-tip { align-items: flex-start; flex-wrap: wrap; }
+  .batch-selection-tip span { width: 100%; margin-left: 0; }
   .controls i { display: none; }
   .rule-row { grid-template-columns: 1fr 1fr 34px; }
   .rule-row input { grid-column: 1 / 3; }

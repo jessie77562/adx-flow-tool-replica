@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { applyBatchOperation, type BatchOperation, eligibleBatchItems, validateBatchPrice } from "./batch-operations";
 
 type Rule = { dimension: string; operator: string; value: string };
 type Group = {
@@ -77,6 +78,8 @@ const initialGroups: Group[] = [
 
 const initialDsps: Dsp[] = [
   { id: 1, groupId: 211, name: "xyysolid通用化公司重命名", enabled: true, floor: 0.3, pids: ["x-1000-ios"], minVersion: "9.01.0", maxVersion: "", size: "全尺寸", revenue: 0, ecpm: 0, requestValue: 0, requests: 0, returns: 0, bidWins: 0, impressions: 0, ctr: 0, cpc: 0 },
+  { id: 3, groupId: 211, name: "优量汇", enabled: true, floor: 0.8, pids: ["gdt-splash-ios", "gdt-splash-premium"], minVersion: "9.01.0", maxVersion: "", size: "全尺寸", revenue: 86.2, ecpm: 7.4, requestValue: 2.1, requests: 15320, returns: 12880, bidWins: 8750, impressions: 8120, ctr: 2.1, cpc: 0.31 },
+  { id: 4, groupId: 211, name: "穿山甲", enabled: false, floor: 1.2, pids: ["csj-splash-ios"], minVersion: "9.02.0", maxVersion: "", size: "全尺寸", revenue: 48.5, ecpm: 6.8, requestValue: 1.9, requests: 9320, returns: 7650, bidWins: 5320, impressions: 4980, ctr: 1.9, cpc: 0.28 },
   { id: 2, groupId: 210, name: "测试DSP来源", enabled: false, floor: 0.5, pids: ["demo-pid-02"], minVersion: "", maxVersion: "", size: "全尺寸", revenue: 12.6, ecpm: 4.2, requestValue: 1.8, requests: 8260, returns: 6901, bidWins: 5150, impressions: 4810, ctr: 1.7, cpc: 0.25 },
 ];
 
@@ -115,11 +118,15 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState(211);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [modal, setModal] = useState<"group" | "dsp" | "ab" | null>(null);
+  const [modal, setModal] = useState<"group" | "dsp" | "ab" | "batch" | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [editingDspId, setEditingDspId] = useState<number | null>(null);
   const [showDisabled, setShowDisabled] = useState(false);
   const [editingFloor, setEditingFloor] = useState<number | null>(null);
+  const [selectedDspIds, setSelectedDspIds] = useState<number[]>([]);
+  const [batchOperation, setBatchOperation] = useState<BatchOperation>("disable");
+  const [batchPrice, setBatchPrice] = useState("");
+  const [batchError, setBatchError] = useState("");
   const [toast, setToast] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [groupDraft, setGroupDraft] = useState({ name: "", priority: 100012, adSlot: "1000-美柚-开屏广告", rules: [] as Rule[] });
@@ -128,7 +135,9 @@ export default function Home() {
   useEffect(() => {
     try {
       const storedGroups = localStorage.getItem("adx-demo-groups");
-      const storedDsps = localStorage.getItem("adx-demo-dsps");
+      const storedDsps = localStorage.getItem("adx-demo-dsps-batch-v1");
+      // Loading the browser-only demo snapshot requires one intentional hydration update.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (storedGroups) setGroups(JSON.parse(storedGroups));
       if (storedDsps) setDsps(JSON.parse(storedDsps));
     } catch { /* keep the seeded demo data */ }
@@ -138,7 +147,7 @@ export default function Home() {
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem("adx-demo-groups", JSON.stringify(groups));
-    localStorage.setItem("adx-demo-dsps", JSON.stringify(dsps));
+    localStorage.setItem("adx-demo-dsps-batch-v1", JSON.stringify(dsps));
   }, [groups, dsps, hydrated]);
 
   useEffect(() => {
@@ -148,15 +157,42 @@ export default function Home() {
   }, [toast]);
 
   const visibleGroups = useMemo(() => groups.filter((group) => group.scene === scene && group.platform === platform).sort((a, b) => b.priority - a.priority), [groups, scene, platform]);
-  const selected = groups.find((group) => group.id === selectedId) ?? visibleGroups[0];
+  const selected = visibleGroups.find((group) => group.id === selectedId) ?? visibleGroups[0];
 
-  useEffect(() => {
-    if (!visibleGroups.some((group) => group.id === selectedId) && visibleGroups[0]) setSelectedId(visibleGroups[0].id);
-  }, [visibleGroups, selectedId]);
+  const resetPidSelection = () => {
+    setSelectedDspIds([]);
+    setShowDisabled(false);
+  };
+
+  const selectGroup = (id: number) => {
+    setSelectedId(id);
+    setOpenMenu(null);
+    resetPidSelection();
+  };
+
+  const changeScene = (nextScene: string) => {
+    setScene(nextScene);
+    const nextGroup = groups.filter((group) => group.scene === nextScene && group.platform === platform).sort((a, b) => b.priority - a.priority)[0];
+    if (nextGroup) setSelectedId(nextGroup.id);
+    resetPidSelection();
+  };
+
+  const changePlatform = (nextPlatform: string) => {
+    setPlatform(nextPlatform);
+    const nextGroup = groups.filter((group) => group.scene === scene && group.platform === nextPlatform).sort((a, b) => b.priority - a.priority)[0];
+    if (nextGroup) setSelectedId(nextGroup.id);
+    resetPidSelection();
+  };
 
   const groupDsps = dsps.filter((dsp) => dsp.groupId === selected?.id);
   const enabledDsps = groupDsps.filter((dsp) => dsp.enabled);
   const disabledDsps = groupDsps.filter((dsp) => !dsp.enabled);
+  const visibleDsps = showDisabled ? [...enabledDsps, ...disabledDsps] : enabledDsps;
+  const selectedDsps = groupDsps.filter((dsp) => selectedDspIds.includes(dsp.id));
+  const selectedPidCount = selectedDsps.reduce((sum, dsp) => sum + dsp.pids.length, 0);
+  const enabledSelectedCount = selectedDsps.filter((dsp) => dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
+  const disabledSelectedCount = selectedDsps.filter((dsp) => !dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
+  const allVisibleSelected = visibleDsps.length > 0 && visibleDsps.every((dsp) => selectedDspIds.includes(dsp.id));
 
   const notify = (message: string) => setToast(message);
   const patchSelected = (patch: Partial<Group>) => selected && setGroups((current) => current.map((group) => group.id === selected.id ? { ...group, ...patch } : group));
@@ -177,7 +213,7 @@ export default function Home() {
     } else {
       const group: Group = { id: Date.now(), ...groupDraft, name: groupDraft.name.trim(), scene, platform, enabled: false, ab: false, traffic: 100, experiment: "A对照组" };
       setGroups((current) => [group, ...current]);
-      setSelectedId(group.id);
+      selectGroup(group.id);
       notify("分组已添加");
     }
     setModal(null);
@@ -186,7 +222,7 @@ export default function Home() {
   const copyGroup = (group: Group) => {
     const copy = { ...group, id: Date.now(), name: `${group.name}-副本`, priority: Math.max(...visibleGroups.map((item) => item.priority), 1) + 1, enabled: false, isDefault: false };
     setGroups((current) => [copy, ...current]);
-    setSelectedId(copy.id);
+    selectGroup(copy.id);
     setOpenMenu(null);
     notify("已复制为新分组");
   };
@@ -213,12 +249,53 @@ export default function Home() {
   const patchDsp = (id: number, patch: Partial<Dsp>) => setDsps((current) => current.map((dsp) => dsp.id === id ? { ...dsp, ...patch } : dsp));
   const percent = (part: number, whole: number) => whole ? `${(part / whole * 100).toFixed(2).replace(".00", "")}%` : "0%";
 
+  const toggleVisibleDsps = () => {
+    const visibleIds = visibleDsps.map((dsp) => dsp.id);
+    setSelectedDspIds((current) => allVisibleSelected
+      ? current.filter((id) => !visibleIds.includes(id))
+      : Array.from(new Set([...current, ...visibleIds])));
+  };
+
+  const openBatchModal = () => {
+    if (!selectedPidCount) return;
+    setBatchOperation(enabledSelectedCount ? "disable" : disabledSelectedCount ? "enable" : "price");
+    setBatchPrice("");
+    setBatchError("");
+    setModal("batch");
+  };
+
+  const submitBatchOperation = (event: FormEvent) => {
+    event.preventDefault();
+    const eligible = eligibleBatchItems(selectedDsps, batchOperation);
+    if (!eligible.length) {
+      setBatchError(batchOperation === "disable" ? "选中的 PID 中没有已启用项" : "选中的 PID 中没有已停用项");
+      return;
+    }
+
+    let price: number | undefined;
+    if (batchOperation === "price") {
+      const error = validateBatchPrice(batchPrice);
+      if (error) return setBatchError(error);
+      price = Number(batchPrice);
+    }
+
+    const affectedPidCount = eligible.reduce((sum, dsp) => sum + dsp.pids.length, 0);
+    setDsps((current) => applyBatchOperation(current, eligible.map((dsp) => dsp.id), batchOperation, price));
+    setSelectedDspIds([]);
+    setModal(null);
+    notify(batchOperation === "disable"
+      ? `已停用 ${affectedPidCount} 个 PID`
+      : batchOperation === "enable"
+        ? `已启用 ${affectedPidCount} 个 PID`
+        : `已将 ${affectedPidCount} 个 PID 的价格设置为 ¥${price}`);
+  };
+
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "collapsed" : ""}`} onClick={() => openMenu !== null && setOpenMenu(null)}>
+    <div className={`app-shell ${sidebarCollapsed ? "collapsed" : ""}`}>
       <header className="topbar">
         <button className="top-menu" aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"} onClick={(event) => { event.stopPropagation(); setSidebarCollapsed((value) => !value); }}>☰</button>
         <strong className="brand">广告投放运营后台</strong>
-        <nav><a href="#">广告投放运营后台</a><a href="#">权限申请</a></nav>
+        <nav><button type="button">广告投放运营后台</button><button type="button">权限申请</button></nav>
       </header>
 
       <aside className="sidebar">
@@ -233,17 +310,17 @@ export default function Home() {
         <section className="panel">
           <h1>流量分组管理</h1>
           <div className="filters">
-            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => setScene(event.target.value)}><option>开屏</option><option>插屏</option><option>信息流</option><option>搜索</option><option>icon</option></select></label>
-            <label>平台：<select aria-label="平台" value={platform} onChange={(event) => setPlatform(event.target.value)}><option>IOS</option><option>Android</option></select></label>
+            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => changeScene(event.target.value)}><option>开屏</option><option>插屏</option><option>信息流</option><option>搜索</option><option>icon</option></select></label>
+            <label>平台：<select aria-label="平台" value={platform} onChange={(event) => changePlatform(event.target.value)}><option>IOS</option><option>Android</option></select></label>
           </div>
           <button type="button" className="primary" onClick={() => openGroupModal()}>＋ 添加分组</button>
 
           <div className="groups" aria-label="分组列表">
             {visibleGroups.length ? visibleGroups.map((group) => (
               <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
-                <button type="button" className="group-select" onClick={() => setSelectedId(group.id)}><span>{group.name}</span>{group.ab && <em>AB</em>}{!group.enabled && <small>已关闭</small>}</button>
+                <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span>{group.ab && <em>AB</em>}{!group.enabled && <small>已关闭</small>}</button>
                 <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
-                {openMenu === group.id && <div className="group-menu" onClick={(event) => event.stopPropagation()}><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button></div>}
+                {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button></div>}
               </div>
             )) : <div className="empty">当前场景与平台暂无分组，点击“添加分组”新建。</div>}
           </div>
@@ -255,14 +332,20 @@ export default function Home() {
               <div className="controls"><strong>分组开关</strong><Toggle checked={selected.enabled} label="分组开关" onChange={() => { patchSelected({ enabled: !selected.enabled }); notify(selected.enabled ? "分组已关闭" : "分组已开启"); }} /><i /> <select aria-label="实验组" value={selected.experiment} onChange={(event) => patchSelected({ experiment: event.target.value as Group["experiment"], ab: true })}><option>A对照组</option><option>B测试组</option></select><strong>流量占比</strong><input aria-label="流量占比" type="number" min="0" max="100" value={selected.traffic} onChange={(event) => patchSelected({ traffic: Math.min(100, Math.max(0, Number(event.target.value))) })} /><span>%</span><button type="button" className="primary push-right" onClick={() => setModal("ab")}>查看A/B测试数据</button></div>
             </div>
 
-            <button type="button" className="primary" onClick={() => openDspModal()}>＋ 添加PID</button>
+            <div className="pid-toolbar">
+              <button type="button" className="primary" onClick={() => openDspModal()}>＋ 添加PID</button>
+              <div className="pid-toolbar-actions">
+                {selectedPidCount > 0 && <span className="selection-summary">已选择 {selectedPidCount} 个 PID</span>}
+                <button type="button" className="secondary" disabled={!selectedPidCount} onClick={openBatchModal}>批量操作</button>
+              </div>
+            </div>
             <div className="table-wrap">
               <table>
-                <thead><tr>{["操作", "DSP来源", "状态", "底价", "预估收入", "eCPM", "千次请求价格", "请求量", "返回量", "返回率", "竞价成功数", "竞价成功率", "展示量", "竞胜展示率", "点击率", "CPC"].map((heading, index) => <th key={heading}>{heading}{index > 2 && index !== 10 && <span className="help" title={`${heading}指标说明`}>?</span>}</th>)}</tr></thead>
+                <thead><tr><th className="selection-cell"><input type="checkbox" aria-label="选择当前显示的全部PID" checked={allVisibleSelected} onChange={toggleVisibleDsps} /></th>{["操作", "DSP来源", "状态", "底价", "预估收入", "eCPM", "千次请求价格", "请求量", "返回量", "返回率", "竞价成功数", "竞价成功率", "展示量", "竞胜展示率", "点击率", "CPC"].map((heading, index) => <th key={heading}>{heading}{index > 2 && index !== 10 && <span className="help" title={`${heading}指标说明`}>?</span>}</th>)}</tr></thead>
                 <tbody>
-                  <tr className="summary-row"><td /><td><strong>{enabledDsps.length}个DSP来源已启用</strong></td><td /><td /><td>¥{enabledDsps.reduce((sum, item) => sum + item.revenue, 0).toFixed(0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.ecpm, 0).toFixed(2)}</td><td>¥{enabledDsps.reduce((sum, item) => sum + item.requestValue, 0).toFixed(0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.requests, 0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.returns, 0)}</td><td>{percent(enabledDsps.reduce((sum, item) => sum + item.returns, 0), enabledDsps.reduce((sum, item) => sum + item.requests, 0))}</td><td>—</td><td>—</td><td>{enabledDsps.reduce((sum, item) => sum + item.impressions, 0)}</td><td>—</td><td>0%</td><td>¥0</td></tr>
-                  {enabledDsps.map((dsp) => <DspRow key={dsp.id} dsp={dsp} editingFloor={editingFloor} setEditingFloor={setEditingFloor} patchDsp={patchDsp} openEdit={() => openDspModal(dsp)} percent={percent} />)}
-                  {showDisabled && disabledDsps.map((dsp) => <DspRow key={dsp.id} dsp={dsp} editingFloor={editingFloor} setEditingFloor={setEditingFloor} patchDsp={patchDsp} openEdit={() => openDspModal(dsp)} percent={percent} />)}
+                  <tr className="summary-row"><td /><td /><td><strong>{enabledDsps.length}个DSP来源已启用</strong></td><td /><td /><td>¥{enabledDsps.reduce((sum, item) => sum + item.revenue, 0).toFixed(0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.ecpm, 0).toFixed(2)}</td><td>¥{enabledDsps.reduce((sum, item) => sum + item.requestValue, 0).toFixed(0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.requests, 0)}</td><td>{enabledDsps.reduce((sum, item) => sum + item.returns, 0)}</td><td>{percent(enabledDsps.reduce((sum, item) => sum + item.returns, 0), enabledDsps.reduce((sum, item) => sum + item.requests, 0))}</td><td>—</td><td>—</td><td>{enabledDsps.reduce((sum, item) => sum + item.impressions, 0)}</td><td>—</td><td>0%</td><td>¥0</td></tr>
+                  {enabledDsps.map((dsp) => <DspRow key={dsp.id} dsp={dsp} selected={selectedDspIds.includes(dsp.id)} onSelect={() => setSelectedDspIds((current) => current.includes(dsp.id) ? current.filter((id) => id !== dsp.id) : [...current, dsp.id])} editingFloor={editingFloor} setEditingFloor={setEditingFloor} patchDsp={patchDsp} openEdit={() => openDspModal(dsp)} percent={percent} />)}
+                  {showDisabled && disabledDsps.map((dsp) => <DspRow key={dsp.id} dsp={dsp} selected={selectedDspIds.includes(dsp.id)} onSelect={() => setSelectedDspIds((current) => current.includes(dsp.id) ? current.filter((id) => id !== dsp.id) : [...current, dsp.id])} editingFloor={editingFloor} setEditingFloor={setEditingFloor} patchDsp={patchDsp} openEdit={() => openDspModal(dsp)} percent={percent} />)}
                 </tbody>
               </table>
             </div>
@@ -299,6 +382,36 @@ export default function Home() {
         </form>
       </Modal>}
 
+      {modal === "batch" && <Modal title="批量操作" onClose={() => setModal(null)}>
+        <form onSubmit={submitBatchOperation}>
+          <div className="modal-body">
+            <div className="batch-selection-tip">已选择 <strong>{selectedPidCount}</strong> 个DSP来源<span>数量按选中的 PID 条数统计</span></div>
+            <Field label="操作类型" required>
+              <div className="batch-operation-list">
+                <label aria-label="批量停用" className={`batch-option ${enabledSelectedCount ? "" : "unavailable"}`}>
+                  <input type="radio" name="batch-operation" checked={batchOperation === "disable"} disabled={!enabledSelectedCount} onChange={() => { setBatchOperation("disable"); setBatchError(""); }} />
+                  <span><strong>停用</strong><small>仅处理已启用的 PID（可操作 {enabledSelectedCount} 个）</small></span>
+                </label>
+                <label aria-label="批量启用" className={`batch-option ${disabledSelectedCount ? "" : "unavailable"}`}>
+                  <input type="radio" name="batch-operation" checked={batchOperation === "enable"} disabled={!disabledSelectedCount} onChange={() => { setBatchOperation("enable"); setBatchError(""); }} />
+                  <span><strong>启用</strong><small>仅处理已停用的 PID（可操作 {disabledSelectedCount} 个）</small></span>
+                </label>
+                <label aria-label="批量设置价格" className="batch-option">
+                  <input type="radio" name="batch-operation" checked={batchOperation === "price"} onChange={() => { setBatchOperation("price"); setBatchError(""); }} />
+                  <span><strong>设置价格</strong><small>修改全部选中 PID 的价格</small></span>
+                </label>
+              </div>
+            </Field>
+            {batchOperation === "price" && <Field label="价格" required>
+              <div className="currency-input"><span>¥</span><input type="number" inputMode="decimal" min="0" max="9999" step="0.01" placeholder="请输入价格" value={batchPrice} onChange={(event) => { setBatchPrice(event.target.value); setBatchError(""); }} /></div>
+              <small>人民币（¥），支持 0–9999，最多两位小数</small>
+            </Field>}
+            {batchError && <div className="field-error" role="alert">{batchError}</div>}
+          </div>
+          <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取 消</button><button className="primary" type="submit">确 定</button></div>
+        </form>
+      </Modal>}
+
       {modal === "ab" && <Modal title="查看A/B测试数据" onClose={() => setModal(null)} wide>
         <div className="modal-body ab-body"><div className="ab-meta"><span>测试名称：{selected?.name}</span><span>数据统计周期：2026-07-30 16:47:16 ~ 2026-08-19 16:25:18</span><span>实验创建时间：2026-07-30 16:47:16</span></div><div className="ab-tabs"><button className="active">全量A组</button><button>全量B组</button></div><div className="table-wrap"><table><thead><tr>{["组别", "累计入组用户", "千人均收益", "预估收入", "eCPM", "千次请求价值", "请求量", "返回量", "返回率", "展示量", "展示率", "点击数", "点击率", "CPC"].map((item) => <th key={item}>{item}</th>)}</tr></thead><tbody><tr><td>A（对照组）</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td></tr><tr><td>B（实验组）</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>37</td><td>10</td><td>27.03%</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td></tr><tr className="summary-row"><td>对比涨幅</td>{Array.from({ length: 13 }).map((_, index) => <td key={index}>—</td>)}</tr></tbody></table></div></div>
         <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取 消</button><button type="button" className="primary" onClick={() => setModal(null)}>确 定</button></div>
@@ -309,6 +422,6 @@ export default function Home() {
   );
 }
 
-function DspRow({ dsp, editingFloor, setEditingFloor, patchDsp, openEdit, percent }: { dsp: Dsp; editingFloor: number | null; setEditingFloor: (id: number | null) => void; patchDsp: (id: number, patch: Partial<Dsp>) => void; openEdit: () => void; percent: (part: number, whole: number) => string }) {
-  return <tr className={!dsp.enabled ? "disabled-row" : ""}><td><button type="button" className="text-action" onClick={openEdit}>编辑</button></td><td>{dsp.name}<small className="pid-note">{dsp.pids.join(" / ")}</small></td><td><Toggle checked={dsp.enabled} label={`${dsp.name}状态`} onChange={() => patchDsp(dsp.id, { enabled: !dsp.enabled })} /></td><td>{editingFloor === dsp.id ? <span className="floor-edit"><input autoFocus aria-label="底价" type="number" min="0" step="0.1" value={dsp.floor} onChange={(event) => patchDsp(dsp.id, { floor: Number(event.target.value) })} /><button type="button" aria-label="保存底价" onClick={() => setEditingFloor(null)}>✓</button></span> : <button type="button" className="floor-value" onClick={() => setEditingFloor(dsp.id)}>¥{dsp.floor} <span>✎</span></button>}</td><td>¥{dsp.revenue}</td><td>{dsp.ecpm.toFixed(2)}</td><td>¥{dsp.requestValue}</td><td>{dsp.requests}</td><td>{dsp.returns}</td><td>{percent(dsp.returns, dsp.requests)}</td><td>{dsp.bidWins}</td><td>{percent(dsp.bidWins, dsp.returns)}</td><td>{dsp.impressions}</td><td>{percent(dsp.impressions, dsp.bidWins)}</td><td>{dsp.ctr}%</td><td>¥{dsp.cpc}</td></tr>;
+function DspRow({ dsp, selected, onSelect, editingFloor, setEditingFloor, patchDsp, openEdit, percent }: { dsp: Dsp; selected: boolean; onSelect: () => void; editingFloor: number | null; setEditingFloor: (id: number | null) => void; patchDsp: (id: number, patch: Partial<Dsp>) => void; openEdit: () => void; percent: (part: number, whole: number) => string }) {
+  return <tr className={!dsp.enabled ? "disabled-row" : ""}><td className="selection-cell"><input type="checkbox" aria-label={`选择 ${dsp.name} 的PID`} checked={selected} onChange={onSelect} /></td><td><button type="button" className="text-action" onClick={openEdit}>编辑</button></td><td>{dsp.name}<small className="pid-note">{dsp.pids.join(" / ")}</small></td><td><Toggle checked={dsp.enabled} label={`${dsp.name}状态`} onChange={() => patchDsp(dsp.id, { enabled: !dsp.enabled })} /></td><td>{editingFloor === dsp.id ? <span className="floor-edit"><input aria-label="底价" type="number" min="0" step="0.1" value={dsp.floor} onChange={(event) => patchDsp(dsp.id, { floor: Number(event.target.value) })} /><button type="button" aria-label="保存底价" onClick={() => setEditingFloor(null)}>✓</button></span> : <button type="button" className="floor-value" onClick={() => setEditingFloor(dsp.id)}>¥{dsp.floor} <span>✎</span></button>}</td><td>¥{dsp.revenue}</td><td>{dsp.ecpm.toFixed(2)}</td><td>¥{dsp.requestValue}</td><td>{dsp.requests}</td><td>{dsp.returns}</td><td>{percent(dsp.returns, dsp.requests)}</td><td>{dsp.bidWins}</td><td>{percent(dsp.bidWins, dsp.returns)}</td><td>{dsp.impressions}</td><td>{percent(dsp.impressions, dsp.bidWins)}</td><td>{dsp.ctr}%</td><td>¥{dsp.cpc}</td></tr>;
 }

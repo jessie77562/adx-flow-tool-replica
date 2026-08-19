@@ -24,6 +24,7 @@ test("renders the ADX flow group management page", async () => {
   assert.match(html, /流量分组管理/);
   assert.match(html, /添加分组/);
   assert.match(html, /添加PID/);
+  assert.match(html, /批量操作/);
   assert.match(html, /DSP来源/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
@@ -37,5 +38,8 @@ test("keeps the restored interactions in the client surface", async () => {
     "patchDsp",
     "localStorage",
     "查看A/B测试数据",
+    "submitBatchOperation",
+    "设置价格",
+    "请输入价格",
   ]) assert.match(page, new RegExp(feature.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
