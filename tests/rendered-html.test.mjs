@@ -14,33 +14,27 @@ async function render() {
   );
 }
 
-test("renders the ad-slot strategy management page", async () => {
+test("renders the ADX flow group management page", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>ADX 广告位策略管理<\/title>/i);
-  assert.match(html, /广告位策略管理/);
-  assert.match(html, /当前最小配置单元/);
-  assert.match(html, /同广告位流量互斥/);
-  assert.match(html, /添加策略/);
+  assert.match(html, /<title>ADX 流量分组管理<\/title>/i);
+  assert.match(html, /流量分组管理/);
+  assert.match(html, /添加分组/);
   assert.match(html, /添加PID/);
   assert.match(html, /DSP来源/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
-test("keeps ad-slot scoping and exclusive matching in the client surface", async () => {
+test("keeps the restored interactions in the client surface", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   for (const feature of [
-    "saveStrategy",
-    "copyStrategy",
+    "saveGroup",
+    "copyGroup",
     "saveDsp",
     "patchDsp",
-    "adSlotId",
-    "selectExclusiveStrategy",
-    "buildExclusiveMatchTrace",
-    "同一广告位的策略优先级不能重复",
     "localStorage",
     "查看A/B测试数据",
   ]) assert.match(page, new RegExp(feature.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
