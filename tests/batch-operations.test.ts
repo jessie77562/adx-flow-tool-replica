@@ -10,12 +10,13 @@ const items = [
 
 test("validates batch prices", () => {
   assert.equal(validateBatchPrice(""), "请输入价格");
-  assert.equal(validateBatchPrice("-1"), "价格应在 0–9999 元之间");
-  assert.equal(validateBatchPrice("12.345"), "价格最多保留两位小数");
-  assert.equal(validateBatchPrice("10000"), "价格应在 0–9999 元之间");
-  assert.equal(validateBatchPrice("abc"), "请输入有效价格");
-  assert.equal(validateBatchPrice("0"), null);
+  assert.equal(validateBatchPrice("abc"), "请输入有效的价格");
+  assert.equal(validateBatchPrice("-1"), "请输入有效的价格");
+  assert.equal(validateBatchPrice("0"), "价格必须大于 0");
+  assert.equal(validateBatchPrice("0.00"), "价格必须大于 0");
+  assert.equal(validateBatchPrice("10000"), "超出价格上限");
   assert.equal(validateBatchPrice("0.01"), null);
+  assert.equal(validateBatchPrice("12.345"), null);
   assert.equal(validateBatchPrice("9999.00"), null);
 });
 

@@ -1,5 +1,7 @@
 export type BatchOperation = "disable" | "enable" | "price";
 
+export const BATCH_PRICE_MAX = 9999;
+
 type BatchItem = {
   id: number;
   enabled: boolean;
@@ -9,11 +11,11 @@ type BatchItem = {
 export function validateBatchPrice(rawValue: string): string | null {
   const value = rawValue.trim();
   if (!value) return "请输入价格";
-  if (!/^-?\d+(\.\d+)?$/.test(value)) return "请输入有效价格";
+  if (!/^(?:\d+\.?\d*|\.\d+)$/.test(value)) return "请输入有效的价格";
 
   const price = Number(value);
-  if (price < 0 || price > 9999) return "价格应在 0–9999 元之间";
-  if (!/^\d+(\.\d{1,2})?$/.test(value)) return "价格最多保留两位小数";
+  if (price <= 0) return "价格必须大于 0";
+  if (price > BATCH_PRICE_MAX) return "超出价格上限";
   return null;
 }
 

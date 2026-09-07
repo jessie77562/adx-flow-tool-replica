@@ -8,8 +8,9 @@
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
+    "build:pages": "GITHUB_PAGES=true WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/batch-operations.test.ts",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/batch-operations.test.ts tests/group-management.test.ts tests/pid-management.test.ts tests/report-data.test.ts tests/ab-report.test.ts tests/experiment-management.test.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

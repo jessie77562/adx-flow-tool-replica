@@ -1,7 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { applyBatchOperation, type BatchOperation, eligibleBatchItems, validateBatchPrice } from "./batch-operations";
+import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { applyBatchOperation, BATCH_PRICE_MAX, type BatchOperation, eligibleBatchItems, validateBatchPrice } from "./batch-operations";
+import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, reorderGroupPriority, setManagedGroupsEnabled } from "./group-management";
+import PidManager from "./pid-manager";
+import ReportManager from "./report-manager";
+import AbReportManager from "./ab-report-manager";
+import GroupExperimentManager from "./group-experiment-manager";
+import type { GroupExperiment } from "./experiment-management";
+
+export const dynamic = "force-static";
 
 type Rule = { dimension: string; operator: string; value: string };
 type Group = {
@@ -69,12 +77,29 @@ const initialGroups: Group[] = [
     isDefault: index === mainGroupNames.length - 1,
   })),
   { id: 301, name: "301-插屏默认分组-iOS", priority: 301, scene: "插屏", platform: "IOS", adSlot: "2001-美柚-插屏广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
-  { id: 302, name: "302-信息流-核心用户", priority: 302, scene: "信息流", platform: "IOS", adSlot: "3001-信息流广告", rules: [{ dimension: "身份", operator: "包含", value: "备孕" }], enabled: true, ab: true, traffic: 50, experiment: "B测试组" },
+  { id: 302, name: "302-社区信息流-核心用户", priority: 302, scene: "社区-信息流", platform: "IOS", adSlot: "3001-社区信息流广告", rules: [{ dimension: "身份", operator: "包含", value: "备孕" }], enabled: true, ab: true, traffic: 50, experiment: "B测试组" },
+  { id: 305, name: "305-社区信息流默认分组-iOS", priority: 301, scene: "社区-信息流", platform: "IOS", adSlot: "3001-社区信息流广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 306, name: "306-社区详情页默认分组-iOS", priority: 306, scene: "社区-详情页", platform: "IOS", adSlot: "3002-社区详情页广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 307, name: "307-社区其他广告位默认分组-iOS", priority: 307, scene: "社区-其他广告位", platform: "IOS", adSlot: "3003-社区其他广告位", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 303, name: "303-搜索默认分组-iOS", priority: 303, scene: "搜索", platform: "IOS", adSlot: "4001-搜索广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 304, name: "304-icon默认分组-iOS", priority: 304, scene: "icon", platform: "IOS", adSlot: "5001-icon广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 401, name: "401-开屏默认分组-Android", priority: 401, scene: "开屏", platform: "Android", adSlot: "1100-美柚-开屏广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 402, name: "402-Android-北京用户", priority: 402, scene: "开屏", platform: "Android", adSlot: "1100-美柚-开屏广告", rules: [{ dimension: "城市", operator: "包含", value: "北京" }], enabled: false, ab: false, traffic: 100, experiment: "A对照组" },
+  { id: 403, name: "403-插屏默认分组-Android", priority: 403, scene: "插屏", platform: "Android", adSlot: "2101-美柚-插屏广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 404, name: "404-社区信息流默认分组-Android", priority: 404, scene: "社区-信息流", platform: "Android", adSlot: "3101-社区信息流广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 407, name: "407-社区详情页默认分组-Android", priority: 407, scene: "社区-详情页", platform: "Android", adSlot: "3102-社区详情页广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 408, name: "408-社区其他广告位默认分组-Android", priority: 408, scene: "社区-其他广告位", platform: "Android", adSlot: "3103-社区其他广告位", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 405, name: "405-搜索默认分组-Android", priority: 405, scene: "搜索", platform: "Android", adSlot: "4101-搜索广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
+  { id: 406, name: "406-icon默认分组-Android", priority: 406, scene: "icon", platform: "Android", adSlot: "5101-icon广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
 ];
+
+function normalizeGroups(current: Group[]): Group[] {
+  const migrated = current.map((group) => group.scene === "信息流" ? { ...group, scene: "社区-信息流" } : group);
+  const missingDefaults = initialGroups.filter((seed) => seed.isDefault && !migrated.some((group) => group.isDefault && group.scene === seed.scene && group.platform === seed.platform));
+  return ensureDefaultGroupsEnabled([...migrated, ...missingDefaults]);
+}
+
+const initialSelectedGroupId = highestEffectiveGroupId(initialGroups.filter((group) => group.scene === "开屏" && group.platform === "IOS")) ?? 211;
 
 const initialDsps: Dsp[] = [
   { id: 1, groupId: 211, name: "xyysolid通用化公司重命名", enabled: true, floor: 0.3, pids: ["x-1000-ios"], minVersion: "9.01.0", maxVersion: "", size: "全尺寸", revenue: 0, ecpm: 0, requestValue: 0, requests: 0, returns: 0, bidWins: 0, impressions: 0, ctr: 0, cpc: 0 },
@@ -82,6 +107,20 @@ const initialDsps: Dsp[] = [
   { id: 4, groupId: 211, name: "穿山甲", enabled: false, floor: 1.2, pids: ["csj-splash-ios"], minVersion: "9.02.0", maxVersion: "", size: "全尺寸", revenue: 48.5, ecpm: 6.8, requestValue: 1.9, requests: 9320, returns: 7650, bidWins: 5320, impressions: 4980, ctr: 1.9, cpc: 0.28 },
   { id: 2, groupId: 210, name: "测试DSP来源", enabled: false, floor: 0.5, pids: ["demo-pid-02"], minVersion: "", maxVersion: "", size: "全尺寸", revenue: 12.6, ecpm: 4.2, requestValue: 1.8, requests: 8260, returns: 6901, bidWins: 5150, impressions: 4810, ctr: 1.7, cpc: 0.25 },
 ];
+
+const initialExperiments: GroupExperiment[] = initialGroups.filter((group) => group.ab).map((group, index) => ({
+  groupId: group.id,
+  testName: `${group.name} A/B 测试`,
+  status: "running",
+  aTraffic: 50,
+  bTraffic: 50,
+  allocation: "split",
+  copyAtoB: true,
+  createdAt: `2026-08-${String(12 + index).padStart(2, "0")} 10:30:00`,
+  updatedAt: "2026-08-19 16:25:18",
+  aConfig: [],
+  bConfig: [],
+}));
 
 const sidebarItems = [
   "品牌智能化", "品牌小工具", "品牌管理", "女人通管理", "女人通消费管理", "女人通数据管理",
@@ -91,8 +130,8 @@ const sidebarItems = [
 
 const emptyRule = (): Rule => ({ dimension: "身份", operator: "包含", value: "经期" });
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
-  return <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`toggle ${checked ? "on" : ""}`} onClick={onChange}><span /></button>;
+function Toggle({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: () => void; label: string; disabled?: boolean }) {
+  return <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`toggle ${checked ? "on" : ""}`} disabled={disabled} onClick={onChange}><span /></button>;
 }
 
 function Modal({ title, children, onClose, wide = false }: { title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
@@ -111,19 +150,31 @@ function Field({ label, required, children, hint }: { label: string; required?: 
 }
 
 export default function Home() {
+  const [currentView, setCurrentView] = useState<"groups" | "pids" | "report" | "abReport">("groups");
   const [groups, setGroups] = useState<Group[]>(initialGroups);
   const [dsps, setDsps] = useState<Dsp[]>(initialDsps);
+  const [experiments, setExperiments] = useState<GroupExperiment[]>(initialExperiments);
+  const [experimentPage, setExperimentPage] = useState<"create" | "detail" | null>(null);
   const [scene, setScene] = useState("开屏");
   const [platform, setPlatform] = useState("IOS");
-  const [selectedId, setSelectedId] = useState(211);
+  const [showEffectiveOnly, setShowEffectiveOnly] = useState(true);
+  const [groupListExpanded, setGroupListExpanded] = useState(false);
+  const [selectedId, setSelectedId] = useState(initialSelectedGroupId);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [modal, setModal] = useState<"group" | "dsp" | "ab" | "batch" | null>(null);
+  const [modal, setModal] = useState<"group" | "groupManager" | "deleteGroup" | "disableGroup" | "dsp" | "batch" | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
+  const [disableConfirmGroupId, setDisableConfirmGroupId] = useState<number | null>(null);
   const [editingDspId, setEditingDspId] = useState<number | null>(null);
   const [showDisabled, setShowDisabled] = useState(false);
   const [editingFloor, setEditingFloor] = useState<number | null>(null);
   const [selectedDspIds, setSelectedDspIds] = useState<number[]>([]);
+  const [managedGroupDraft, setManagedGroupDraft] = useState<Group[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
+  const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null);
+  const pointerDraggedGroupId = useRef<number | null>(null);
+  const lastPointerTargetId = useRef<number | null>(null);
   const [batchOperation, setBatchOperation] = useState<BatchOperation>("disable");
   const [batchPrice, setBatchPrice] = useState("");
   const [batchError, setBatchError] = useState("");
@@ -132,23 +183,31 @@ export default function Home() {
   const [groupDraft, setGroupDraft] = useState({ name: "", priority: 100012, adSlot: "1000-美柚-开屏广告", rules: [] as Rule[] });
   const [dspDraft, setDspDraft] = useState({ name: "", size: "全尺寸" as "全尺寸" | "自定义", customSize: "", pids: [""], minVersion: "", maxVersion: "", floor: 0.3, enabled: true });
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Browser-local demo data is restored once after hydration. */
   useEffect(() => {
     try {
       const storedGroups = localStorage.getItem("adx-demo-groups");
       const storedDsps = localStorage.getItem("adx-demo-dsps-batch-v1");
-      // Loading the browser-only demo snapshot requires one intentional hydration update.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (storedGroups) setGroups(JSON.parse(storedGroups));
+      const storedExperiments = localStorage.getItem("adx-demo-group-experiments-v1");
+      if (storedGroups) {
+        const normalizedGroups = normalizeGroups(JSON.parse(storedGroups));
+        setGroups(normalizedGroups);
+        const highestId = highestEffectiveGroupId(normalizedGroups.filter((group) => group.scene === "开屏" && group.platform === "IOS"));
+        if (highestId !== null) setSelectedId(highestId);
+      }
       if (storedDsps) setDsps(JSON.parse(storedDsps));
+      if (storedExperiments) setExperiments(JSON.parse(storedExperiments));
     } catch { /* keep the seeded demo data */ }
     setHydrated(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem("adx-demo-groups", JSON.stringify(groups));
     localStorage.setItem("adx-demo-dsps-batch-v1", JSON.stringify(dsps));
-  }, [groups, dsps, hydrated]);
+    localStorage.setItem("adx-demo-group-experiments-v1", JSON.stringify(experiments));
+  }, [groups, dsps, experiments, hydrated]);
 
   useEffect(() => {
     if (!toast) return;
@@ -156,8 +215,10 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const visibleGroups = useMemo(() => groups.filter((group) => group.scene === scene && group.platform === platform).sort((a, b) => b.priority - a.priority), [groups, scene, platform]);
+  const sceneGroups = useMemo(() => groups.filter((group) => group.scene === scene && group.platform === platform).sort((a, b) => b.priority - a.priority), [groups, scene, platform]);
+  const visibleGroups = useMemo(() => showEffectiveOnly ? sceneGroups.filter((group) => group.enabled || group.isDefault) : sceneGroups, [sceneGroups, showEffectiveOnly]);
   const selected = visibleGroups.find((group) => group.id === selectedId) ?? visibleGroups[0];
+  const selectedExperiment = selected ? experiments.find((experiment) => experiment.groupId === selected.id) : undefined;
 
   const resetPidSelection = () => {
     setSelectedDspIds([]);
@@ -172,15 +233,19 @@ export default function Home() {
 
   const changeScene = (nextScene: string) => {
     setScene(nextScene);
-    const nextGroup = groups.filter((group) => group.scene === nextScene && group.platform === platform).sort((a, b) => b.priority - a.priority)[0];
-    if (nextGroup) setSelectedId(nextGroup.id);
+    setGroupListExpanded(false);
+    const nextGroups = groups.filter((group) => group.scene === nextScene && group.platform === platform).sort((a, b) => b.priority - a.priority);
+    const nextGroupId = showEffectiveOnly ? highestEffectiveGroupId(nextGroups) : nextGroups[0]?.id;
+    if (nextGroupId !== null && nextGroupId !== undefined) setSelectedId(nextGroupId);
     resetPidSelection();
   };
 
   const changePlatform = (nextPlatform: string) => {
     setPlatform(nextPlatform);
-    const nextGroup = groups.filter((group) => group.scene === scene && group.platform === nextPlatform).sort((a, b) => b.priority - a.priority)[0];
-    if (nextGroup) setSelectedId(nextGroup.id);
+    setGroupListExpanded(false);
+    const nextGroups = groups.filter((group) => group.scene === scene && group.platform === nextPlatform).sort((a, b) => b.priority - a.priority);
+    const nextGroupId = showEffectiveOnly ? highestEffectiveGroupId(nextGroups) : nextGroups[0]?.id;
+    if (nextGroupId !== null && nextGroupId !== undefined) setSelectedId(nextGroupId);
     resetPidSelection();
   };
 
@@ -193,15 +258,131 @@ export default function Home() {
   const enabledSelectedCount = selectedDsps.filter((dsp) => dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const disabledSelectedCount = selectedDsps.filter((dsp) => !dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const allVisibleSelected = visibleDsps.length > 0 && visibleDsps.every((dsp) => selectedDspIds.includes(dsp.id));
+  const managerGroups = managedGroupDraft;
+  const manageableGroups = managerGroups.filter((group) => !group.isDefault);
+  const selectedManageGroups = manageableGroups.filter((group) => selectedGroupIds.includes(group.id));
+  const allManageableSelected = manageableGroups.length > 0 && manageableGroups.every((group) => selectedGroupIds.includes(group.id));
+  const selectedEnabledGroups = selectedManageGroups.filter((group) => group.enabled).length;
+  const selectedDisabledGroups = selectedManageGroups.filter((group) => !group.enabled).length;
 
   const notify = (message: string) => setToast(message);
   const patchSelected = (patch: Partial<Group>) => selected && setGroups((current) => current.map((group) => group.id === selected.id ? { ...group, ...patch } : group));
 
+  const requestSelectedGroupStatusChange = () => {
+    if (!selected || selected.isDefault) return;
+    if (!selected.enabled) {
+      patchSelected({ enabled: true });
+      notify("分组已开启，分组策略已生效");
+      return;
+    }
+    setDisableConfirmGroupId(selected.id);
+    setModal("disableGroup");
+  };
+
+  const closeDisableGroupConfirmation = () => {
+    setModal(null);
+    setDisableConfirmGroupId(null);
+  };
+
+  const confirmDisableGroup = () => {
+    const target = groups.find((group) => group.id === disableConfirmGroupId);
+    if (!target || target.isDefault || !target.enabled) {
+      closeDisableGroupConfirmation();
+      return notify("该分组当前不可停用");
+    }
+    setGroups((current) => current.map((group) => group.id === target.id ? { ...group, enabled: false } : group));
+    closeDisableGroupConfirmation();
+    notify("分组已关闭，分组策略已失效");
+  };
+
   const openGroupModal = (group?: Group) => {
     setOpenMenu(null);
     setEditingGroupId(group?.id ?? null);
-    setGroupDraft(group ? { name: group.name, priority: group.priority, adSlot: group.adSlot, rules: group.rules.map((rule) => ({ ...rule })) } : { name: "", priority: Math.max(...visibleGroups.map((item) => item.priority), 1) + 1, adSlot: scene === "开屏" ? "1000-美柚-开屏广告" : `${scene}-默认广告位`, rules: [] });
+    setGroupDraft(group ? { name: group.name, priority: group.priority, adSlot: group.adSlot, rules: group.rules.map((rule) => ({ ...rule })) } : { name: "", priority: Math.max(...sceneGroups.map((item) => item.priority), 1) + 1, adSlot: scene === "开屏" ? "1000-美柚-开屏广告" : `${scene}-默认广告位`, rules: [] });
     setModal("group");
+  };
+
+  const openGroupManager = () => {
+    setManagedGroupDraft(sceneGroups.map((group) => ({ ...group, rules: group.rules.map((rule) => ({ ...rule })) })));
+    setSelectedGroupIds([]);
+    setDraggedGroupId(null);
+    setModal("groupManager");
+  };
+
+  const toggleAllManageableGroups = () => {
+    setSelectedGroupIds(allManageableSelected ? [] : manageableGroups.map((group) => group.id));
+  };
+
+  const toggleEffectiveFilter = () => {
+    const nextValue = !showEffectiveOnly;
+    setShowEffectiveOnly(nextValue);
+    setGroupListExpanded(false);
+    if (nextValue) {
+      const highestId = highestEffectiveGroupId(sceneGroups);
+      if (highestId !== null) selectGroup(highestId);
+    }
+  };
+
+  const toggleManagedGroupSelection = (id: number) => {
+    setSelectedGroupIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  };
+
+  const changeManagedGroupStatus = (ids: number[], enabled: boolean) => {
+    setManagedGroupDraft((current) => setManagedGroupsEnabled(current, ids, enabled));
+  };
+
+  const dropManagedGroup = (targetId: number, sourceId: number | null = draggedGroupId) => {
+    if (sourceId === null) return;
+    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), sourceId, targetId));
+    setDraggedGroupId(null);
+  };
+
+  const startPointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>, groupId: number) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointerDraggedGroupId.current = groupId;
+    lastPointerTargetId.current = groupId;
+    setDraggedGroupId(groupId);
+  };
+
+  const movePointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const sourceId = pointerDraggedGroupId.current;
+    if (sourceId === null) return;
+
+    const targetRow = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-managed-group-id]");
+    const targetId = Number(targetRow?.dataset.managedGroupId);
+    if (!Number.isFinite(targetId) || targetId === lastPointerTargetId.current) return;
+
+    lastPointerTargetId.current = targetId;
+    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), sourceId, targetId));
+  };
+
+  const endPointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    pointerDraggedGroupId.current = null;
+    lastPointerTargetId.current = null;
+    setDraggedGroupId(null);
+  };
+
+  const moveManagedGroup = (groupId: number, direction: -1 | 1) => {
+    const index = managerGroups.findIndex((group) => group.id === groupId);
+    const target = managerGroups[index + direction];
+    if (!target || managerGroups[index]?.isDefault) return;
+    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), groupId, target.id));
+  };
+
+  const closeGroupManager = () => {
+    setModal(null);
+    setManagedGroupDraft([]);
+    setSelectedGroupIds([]);
+    setDraggedGroupId(null);
+  };
+
+  const confirmGroupManager = () => {
+    const draftById = new Map(managerGroups.map((group) => [group.id, group]));
+    setGroups((current) => normalizeGroups(current.map((group) => draftById.get(group.id) ?? group)));
+    closeGroupManager();
+    notify("分组管理修改已保存");
   };
 
   const saveGroup = (event: FormEvent) => {
@@ -213,6 +394,7 @@ export default function Home() {
     } else {
       const group: Group = { id: Date.now(), ...groupDraft, name: groupDraft.name.trim(), scene, platform, enabled: false, ab: false, traffic: 100, experiment: "A对照组" };
       setGroups((current) => [group, ...current]);
+      setShowEffectiveOnly(false);
       selectGroup(group.id);
       notify("分组已添加");
     }
@@ -220,11 +402,55 @@ export default function Home() {
   };
 
   const copyGroup = (group: Group) => {
-    const copy = { ...group, id: Date.now(), name: `${group.name}-副本`, priority: Math.max(...visibleGroups.map((item) => item.priority), 1) + 1, enabled: false, isDefault: false };
+    const copy = { ...group, id: Date.now(), name: `${group.name}-副本`, priority: Math.max(...sceneGroups.map((item) => item.priority), 1) + 1, enabled: false, isDefault: false };
     setGroups((current) => [copy, ...current]);
+    setShowEffectiveOnly(false);
     selectGroup(copy.id);
     setOpenMenu(null);
     notify("已复制为新分组");
+  };
+
+  const openDeleteGroupConfirmation = (group: Group) => {
+    setOpenMenu(null);
+    if (group.enabled || group.isDefault) return notify("仅已失效的非默认分组可删除");
+    setDeletingGroupId(group.id);
+    setModal("deleteGroup");
+  };
+
+  const closeDeleteGroupConfirmation = () => {
+    setModal(null);
+    setDeletingGroupId(null);
+  };
+
+  const confirmDeleteGroup = () => {
+    const deletingGroup = groups.find((group) => group.id === deletingGroupId);
+    if (!deletingGroup || deletingGroup.enabled || deletingGroup.isDefault) {
+      closeDeleteGroupConfirmation();
+      return notify("该分组当前不可删除");
+    }
+
+    const remainingGroups = groups.filter((group) => group.id !== deletingGroup.id);
+    setGroups(remainingGroups);
+    setDsps((current) => current.filter((dsp) => dsp.groupId !== deletingGroup.id));
+    if (selectedId === deletingGroup.id) {
+      const remainingSceneGroups = remainingGroups.filter((group) => group.scene === scene && group.platform === platform).sort((a, b) => b.priority - a.priority);
+      const nextId = showEffectiveOnly ? highestEffectiveGroupId(remainingSceneGroups) : remainingSceneGroups[0]?.id;
+      if (nextId !== null && nextId !== undefined) setSelectedId(nextId);
+    }
+    closeDeleteGroupConfirmation();
+    notify(`分组“${deletingGroup.name}”已删除`);
+  };
+
+  const openBoundGroup = (groupId: number) => {
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) return notify("关联分组已不存在");
+    setCurrentView("groups");
+    setScene(group.scene);
+    setPlatform(group.platform);
+    setShowEffectiveOnly(false);
+    setGroupListExpanded(true);
+    setSelectedId(group.id);
+    resetPidSelection();
   };
 
   const openDspModal = (dsp?: Dsp) => {
@@ -302,34 +528,43 @@ export default function Home() {
         <div className="profile"><span>张佳琪</span><button type="button" onClick={() => notify("演示环境不会退出登录")}>退出</button></div>
         {sidebarItems.map((item) => <button type="button" className="side-row" key={item}>{item}<span>‹</span></button>)}
         <button type="button" className="side-row active">ADX流量工具<span>⌄</span></button>
-        <button type="button" className="sub-row">›&nbsp; 流量分组管理</button>
+        <button type="button" className={`sub-row ${currentView === "groups" ? "active" : ""}`} onClick={() => { setCurrentView("groups"); setExperimentPage(null); setModal(null); }}>›&nbsp; 流量分组管理</button>
+        <button type="button" className={`sub-row ${currentView === "pids" ? "active" : ""}`} onClick={() => { setCurrentView("pids"); setExperimentPage(null); setModal(null); }}>›&nbsp; PID 管理</button>
+        <button type="button" className={`sub-row ${currentView === "report" ? "active" : ""}`} onClick={() => { setCurrentView("report"); setExperimentPage(null); setModal(null); }}>›&nbsp; 综合报表</button>
+        <button type="button" className={`sub-row ${currentView === "abReport" ? "active" : ""}`} onClick={() => { setCurrentView("abReport"); setExperimentPage(null); setModal(null); }}>›&nbsp; A/B测试报表</button>
         <button type="button" className="side-row">广告交互管理<span>‹</span></button>
       </aside>
 
       <main className="content">
-        <section className="panel">
+        {currentView === "groups" && experimentPage && selected ? <GroupExperimentManager group={selected} dsps={groupDsps} experiment={experimentPage === "detail" ? selectedExperiment : undefined} onBack={() => setExperimentPage(null)} onNotify={notify} onChange={(nextExperiment) => {
+          setExperiments((current) => current.some((item) => item.groupId === nextExperiment.groupId) ? current.map((item) => item.groupId === nextExperiment.groupId ? nextExperiment : item) : [...current, nextExperiment]);
+          setGroups((current) => current.map((group) => group.id === nextExperiment.groupId ? { ...group, ab: true, traffic: nextExperiment.bTraffic, experiment: nextExperiment.aTraffic === 100 ? "A对照组" : "B测试组" } : group));
+        }} /> : currentView === "groups" ? <section className="panel">
           <h1>流量分组管理</h1>
           <div className="filters">
-            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => changeScene(event.target.value)}><option>开屏</option><option>插屏</option><option>信息流</option><option>搜索</option><option>icon</option></select></label>
+            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => changeScene(event.target.value)}><option>开屏</option><option>插屏</option><option>社区-信息流</option><option>社区-详情页</option><option>社区-其他广告位</option><option>搜索</option><option>icon</option></select></label>
             <label>平台：<select aria-label="平台" value={platform} onChange={(event) => changePlatform(event.target.value)}><option>IOS</option><option>Android</option></select></label>
           </div>
-          <button type="button" className="primary" onClick={() => openGroupModal()}>＋ 添加分组</button>
+          <div className="group-toolbar"><div><button type="button" className="primary" onClick={() => openGroupModal()}>＋ 添加分组</button><button type="button" className="secondary" onClick={openGroupManager}>分组管理</button></div><button type="button" className={`effective-filter ${showEffectiveOnly ? "active" : ""}`} aria-pressed={showEffectiveOnly} onClick={toggleEffectiveFilter}><span>{showEffectiveOnly ? "✓" : ""}</span>仅展示生效中</button></div>
 
-          <div className="groups" aria-label="分组列表">
-            {visibleGroups.length ? visibleGroups.map((group) => (
-              <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
-                <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span>{group.ab && <em>AB</em>}{!group.enabled && <small>已关闭</small>}</button>
-                <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
-                {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button></div>}
-              </div>
-            )) : <div className="empty">当前场景与平台暂无分组，点击“添加分组”新建。</div>}
+          <div className="group-list-area">
+            <div id="group-list" className={`groups ${groupListExpanded ? "expanded" : "collapsed"}`} aria-label="分组列表">
+              {visibleGroups.length ? visibleGroups.map((group) => (
+                <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
+                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
+                  <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setGroupListExpanded(true); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
+                  {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button>{!group.enabled && !group.isDefault && <button type="button" className="danger" onClick={() => openDeleteGroupConfirmation(group)}>删除分组</button>}</div>}
+                </div>
+              )) : <div className="empty">{showEffectiveOnly ? "当前场景与平台暂无生效中的分组。" : "当前场景与平台暂无分组，点击“添加分组”新建。"}</div>}
+            </div>
+            {visibleGroups.length > 2 && <button type="button" className="group-list-toggle" aria-controls="group-list" aria-expanded={groupListExpanded} onClick={() => { setGroupListExpanded((value) => !value); setOpenMenu(null); }}><span>{groupListExpanded ? "⌃" : "⌄"}</span>{groupListExpanded ? "收起分组" : `展开全部分组（${visibleGroups.length}）`}</button>}
           </div>
 
           {selected && <>
             <div className="group-detail">
               <div><strong>广告位：</strong><span className="pink-tag">{selected.adSlot}</span></div>
               <div><strong>分组规则：</strong>{selected.rules.length ? selected.rules.map((rule, index) => <span className="rule-tag" key={`${rule.dimension}-${index}`}>{rule.dimension}({rule.operator}): {rule.value}</span>) : <span className="muted">默认流量，无附加规则</span>}</div>
-              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.enabled} label="分组开关" onChange={() => { patchSelected({ enabled: !selected.enabled }); notify(selected.enabled ? "分组已关闭" : "分组已开启"); }} /><i /> <select aria-label="实验组" value={selected.experiment} onChange={(event) => patchSelected({ experiment: event.target.value as Group["experiment"], ab: true })}><option>A对照组</option><option>B测试组</option></select><strong>流量占比</strong><input aria-label="流量占比" type="number" min="0" max="100" value={selected.traffic} onChange={(event) => patchSelected({ traffic: Math.min(100, Math.max(0, Number(event.target.value))) })} /><span>%</span><button type="button" className="primary push-right" onClick={() => setModal("ab")}>查看A/B测试数据</button></div>
+              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <button type="button" className="primary push-right" onClick={() => setExperimentPage(selectedExperiment ? "detail" : "create")}>{selectedExperiment ? "查看A/B测试数据" : "创建A/B实验"}</button> : <span className="experiment-unavailable push-right">启用分组后可创建实验</span>}</div>
             </div>
 
             <div className="pid-toolbar">
@@ -351,14 +586,54 @@ export default function Home() {
             </div>
             <button type="button" className="disabled-toggle" onClick={() => setShowDisabled((value) => !value)}><span>{showDisabled ? "⌄" : "›"}</span>{disabledDsps.length} 个DSP来源未启用</button>
           </>}
-        </section>
+        </section> : currentView === "pids" ? <PidManager groups={groups} onOpenGroup={openBoundGroup} onNotify={notify} /> : currentView === "report" ? <ReportManager groups={groups} onNotify={notify} /> : <AbReportManager onNotify={notify} />}
       </main>
+
+      {modal === "groupManager" && <Modal title="分组管理" onClose={closeGroupManager} wide>
+        <div className="group-manager-body">
+          <div className="group-manager-meta"><strong>当前场景：{scene}</strong><span>/</span><strong>平台：{platform === "IOS" ? "iOS" : platform}</strong></div>
+          <div className="group-manager-tip"><span>↕</span><div><strong>拖拽调整分组优先级，数字越小优先级越高</strong><small>调整后点击“确认”保存；默认分组固定置底并始终启用。</small></div></div>
+          <div className="group-manager-toolbar">
+            <label><input type="checkbox" checked={allManageableSelected} onChange={toggleAllManageableGroups} />全选非默认分组</label>
+            <span>已选择 {selectedManageGroups.length} 个分组</span>
+            <div><button type="button" className="secondary" disabled={!selectedDisabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => !group.enabled).map((group) => group.id), true)}>批量启用{selectedDisabledGroups ? `（${selectedDisabledGroups}）` : ""}</button><button type="button" className="secondary danger" disabled={!selectedEnabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => group.enabled).map((group) => group.id), false)}>批量停用{selectedEnabledGroups ? `（${selectedEnabledGroups}）` : ""}</button></div>
+          </div>
+          <div className="group-manager-list" aria-label="可排序分组列表">
+            {managerGroups.map((group, index) => <div className={`managed-group-row ${group.isDefault ? "default" : ""} ${draggedGroupId === group.id ? "dragging" : ""}`} data-managed-group-id={group.id} key={group.id} draggable={!group.isDefault} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(group.id)); setDraggedGroupId(group.id); }} onDragEnd={() => setDraggedGroupId(null)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); const transferredId = Number(event.dataTransfer.getData("text/plain")); dropManagedGroup(group.id, Number.isFinite(transferredId) && transferredId > 0 ? transferredId : draggedGroupId); }}>
+              <button type="button" className="drag-handle" aria-label={`拖动${group.name}调整优先级`} disabled={group.isDefault} onPointerDown={(event) => startPointerGroupDrag(event, group.id)} onPointerMove={movePointerGroupDrag} onPointerUp={endPointerGroupDrag} onPointerCancel={endPointerGroupDrag}>⠿</button>
+              <input type="checkbox" aria-label={`选择分组 ${group.name}`} disabled={group.isDefault} checked={!group.isDefault && selectedGroupIds.includes(group.id)} onChange={() => toggleManagedGroupSelection(group.id)} />
+              <strong className="priority-badge">P{index + 1}</strong>
+              <div className="managed-group-info"><strong>{group.name}</strong><span>{group.isDefault ? "默认分组 · 固定置底" : group.rules.length ? `${group.rules.length} 条分组规则` : "无附加分组规则"}</span></div>
+              <span className={`strategy-state ${group.enabled || group.isDefault ? "effective" : "inactive"}`}>{group.enabled || group.isDefault ? "策略生效" : "策略失效"}</span>
+              <Toggle checked={group.isDefault ? true : group.enabled} disabled={Boolean(group.isDefault)} label={group.isDefault ? `${group.name}默认启用` : `${group.name}状态`} onChange={() => changeManagedGroupStatus([group.id], !group.enabled)} />
+              <div className="move-actions"><button type="button" aria-label={`${group.name}上移`} disabled={group.isDefault || index === 0} onClick={() => moveManagedGroup(group.id, -1)}>↑</button><button type="button" aria-label={`${group.name}下移`} disabled={group.isDefault || index >= manageableGroups.length - 1} onClick={() => moveManagedGroup(group.id, 1)}>↓</button></div>
+            </div>)}
+          </div>
+        </div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={closeGroupManager}>取消</button><button type="button" className="primary" onClick={confirmGroupManager}>确认</button></div>
+      </Modal>}
+
+      {modal === "deleteGroup" && <Modal title="删除分组" onClose={closeDeleteGroupConfirmation}>
+        <div className="delete-confirm-body">
+          <span className="delete-warning" aria-hidden="true">!</span>
+          <div><h3>确认删除“{groups.find((group) => group.id === deletingGroupId)?.name}”吗？</h3><p>删除后不可恢复，该分组下的 PID 配置也将同步删除。</p></div>
+        </div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={closeDeleteGroupConfirmation}>取消</button><button type="button" className="danger-primary" onClick={confirmDeleteGroup}>确认删除</button></div>
+      </Modal>}
+
+      {modal === "disableGroup" && <Modal title="停用分组" onClose={closeDisableGroupConfirmation}>
+        <div className="delete-confirm-body">
+          <span className="disable-warning" aria-hidden="true">!</span>
+          <div><h3>确认停用“{groups.find((group) => group.id === disableConfirmGroupId)?.name}”吗？</h3><p>停用后，该流量分组策略将立即失效，分组内的 PID 配置会保留。</p></div>
+        </div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={closeDisableGroupConfirmation}>取消</button><button type="button" className="danger-primary" onClick={confirmDisableGroup}>确认停用</button></div>
+      </Modal>}
 
       {modal === "group" && <Modal title={editingGroupId ? "编辑分组" : "添加分组"} onClose={() => setModal(null)}>
         <form onSubmit={saveGroup}>
           <div className="modal-body">
             <Field label="分组名称" required><input maxLength={20} placeholder="请输入分组名称" value={groupDraft.name} onChange={(event) => setGroupDraft({ ...groupDraft, name: event.target.value })} /><small className="counter">{groupDraft.name.length}/20</small></Field>
-            <Field label="优先级" hint="数值越大优先级越高"><input type="number" min="2" max="999999" value={groupDraft.priority} onChange={(event) => setGroupDraft({ ...groupDraft, priority: Number(event.target.value) })} /></Field>
+            <Field label="优先级" hint="请在“分组管理”中拖拽调整"><input disabled value={editingGroupId ? `P${Math.max(1, sceneGroups.findIndex((group) => group.id === editingGroupId) + 1)}` : "保存后默认置顶"} /></Field>
             <Field label="广告场景"><input disabled value={scene} /></Field>
             <Field label="平台"><input disabled value={platform} /></Field>
             <Field label="广告位" required><select value={groupDraft.adSlot} onChange={(event) => setGroupDraft({ ...groupDraft, adSlot: event.target.value })}><option>1000-美柚-开屏广告</option><option>1001-美柚-开屏广告-新</option><option>{scene}-默认广告位</option></select></Field>
@@ -383,7 +658,7 @@ export default function Home() {
       </Modal>}
 
       {modal === "batch" && <Modal title="批量操作" onClose={() => setModal(null)}>
-        <form onSubmit={submitBatchOperation}>
+        <form noValidate onSubmit={submitBatchOperation}>
           <div className="modal-body">
             <div className="batch-selection-tip">已选择 <strong>{selectedPidCount}</strong> 个DSP来源<span>数量按选中的 PID 条数统计</span></div>
             <Field label="操作类型" required>
@@ -403,18 +678,13 @@ export default function Home() {
               </div>
             </Field>
             {batchOperation === "price" && <Field label="价格" required>
-              <div className="currency-input"><span>¥</span><input type="number" inputMode="decimal" min="0" max="9999" step="0.01" placeholder="请输入价格" value={batchPrice} onChange={(event) => { setBatchPrice(event.target.value); setBatchError(""); }} /></div>
-              <small>人民币（¥），支持 0–9999，最多两位小数</small>
+              <div className="currency-input"><span>¥</span><input type="number" inputMode="decimal" min="0" max={BATCH_PRICE_MAX} step="any" placeholder="请输入价格" value={batchPrice} onChange={(event) => { setBatchPrice(event.target.value); setBatchError(""); }} /></div>
+              <small>人民币（¥），必须大于 0，最高 {BATCH_PRICE_MAX}，支持小数</small>
             </Field>}
             {batchError && <div className="field-error" role="alert">{batchError}</div>}
           </div>
-          <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取 消</button><button className="primary" type="submit">确 定</button></div>
+          <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取消</button><button className="primary" type="submit">确认执行</button></div>
         </form>
-      </Modal>}
-
-      {modal === "ab" && <Modal title="查看A/B测试数据" onClose={() => setModal(null)} wide>
-        <div className="modal-body ab-body"><div className="ab-meta"><span>测试名称：{selected?.name}</span><span>数据统计周期：2026-07-30 16:47:16 ~ 2026-08-19 16:25:18</span><span>实验创建时间：2026-07-30 16:47:16</span></div><div className="ab-tabs"><button className="active">全量A组</button><button>全量B组</button></div><div className="table-wrap"><table><thead><tr>{["组别", "累计入组用户", "千人均收益", "预估收入", "eCPM", "千次请求价值", "请求量", "返回量", "返回率", "展示量", "展示率", "点击数", "点击率", "CPC"].map((item) => <th key={item}>{item}</th>)}</tr></thead><tbody><tr><td>A（对照组）</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td></tr><tr><td>B（实验组）</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>37</td><td>10</td><td>27.03%</td><td>0</td><td>0%</td><td>0</td><td>0%</td><td>0</td></tr><tr className="summary-row"><td>对比涨幅</td>{Array.from({ length: 13 }).map((_, index) => <td key={index}>—</td>)}</tr></tbody></table></div></div>
-        <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取 消</button><button type="button" className="primary" onClick={() => setModal(null)}>确 定</button></div>
       </Modal>}
 
       {toast && <div className="toast" role="status">✓ {toast}</div>}

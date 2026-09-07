@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "广告投放运营后台的流量分组管理功能还原版",
 };
 
+export const dynamic = "force-static";
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="zh-CN"><body>{children}</body></html>;
 }
