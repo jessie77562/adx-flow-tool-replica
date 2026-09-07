@@ -61,6 +61,7 @@ test("keeps the restored interactions in the client surface", async () => {
     "全选非默认分组",
     "批量启用",
     "批量停用",
+    "批量修改底价",
     "showEffectiveOnly",
     "groupListExpanded",
     "aria-controls=\"group-list\"",

@@ -41,3 +41,12 @@ test("drag sorting recalculates scoped priorities and keeps default last", () =>
   assert.equal(scoped[2].priority, 1);
   assert.equal(result.find((group) => group.id === 4)?.priority, 99);
 });
+
+test("drag sorting works in both directions and ignores attempts to drag the default group", () => {
+  const movedDown = reorderGroupPriority(groups, [1, 2, 3], 1, 2);
+  assert.deepEqual(movedDown.filter((group) => [1, 2, 3].includes(group.id)).map((group) => group.id), [2, 1, 3]);
+
+  const defaultDrag = reorderGroupPriority(groups, [1, 2, 3], 3, 1);
+  assert.deepEqual(defaultDrag.map((group) => group.id), groups.map((group) => group.id));
+  assert.equal(defaultDrag.find((group) => group.id === 3)?.enabled, true);
+});
