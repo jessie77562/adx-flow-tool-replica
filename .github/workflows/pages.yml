@@ -25,6 +25,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:pages
+      - name: Normalize static asset directory
+        run: |
+          mv dist/client/adx-flow-tool-replica/_next dist/client/_next
+          rmdir dist/client/adx-flow-tool-replica
       - name: Disable Jekyll processing
         run: touch dist/client/.nojekyll
       - uses: actions/configure-pages@v5
