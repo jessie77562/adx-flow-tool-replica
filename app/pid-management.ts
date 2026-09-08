@@ -9,17 +9,15 @@ export type PidRecord = {
   scene: string;
   adSlot: string;
   groupIds: number[];
-  minSdkVersion: string;
-  maxSdkVersion: string;
+  appVersion: string;
 };
 
 export type PidFilters = {
   scene: string;
   platform: string;
   adSlot: string;
+  pid: string;
   dspSources: string[];
-  sdkVersionOperator: "gte" | "lte" | "gt" | "lt" | "contains";
-  sdkVersion: string;
   groupIds: string[];
   showAll: boolean;
 };
@@ -49,20 +47,6 @@ export const PID_AD_SLOTS = [
   { scene: "icon", platform: "Android" as const, value: "5101-icon广告" },
 ];
 
-function versionParts(version: string): number[] {
-  const parts = version.split(".").map(Number);
-  return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
-}
-
-export function compareSdkVersions(left: string, right: string): number {
-  const leftParts = versionParts(left);
-  const rightParts = versionParts(right);
-  for (let index = 0; index < 3; index += 1) {
-    if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
-  }
-  return 0;
-}
-
 export function validatePidDraft(draft: PidDraft, records: PidRecord[], editingId: number | null): PidDraftErrors {
   const errors: PidDraftErrors = {};
   if (!draft.dspSource) errors.dspSource = "请选择 DSP 来源";
@@ -73,10 +57,13 @@ export function validatePidDraft(draft: PidDraft, records: PidRecord[], editingI
   else if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(draft.pid.trim())) errors.pid = "PID 格式错误";
   else if (records.some((record) => record.id !== editingId && record.pid.toLowerCase() === draft.pid.trim().toLowerCase())) errors.pid = "该 PID 已存在，请重新输入";
 
-  if (!/^\d+\.\d+\.\d+$/.test(draft.minSdkVersion.trim())) errors.minSdkVersion = "版本输入格式错误";
-  if (draft.maxSdkVersion.trim() && !/^\d+\.\d+\.\d+$/.test(draft.maxSdkVersion.trim())) errors.maxSdkVersion = "版本输入格式错误";
-  else if (draft.maxSdkVersion.trim() && !errors.minSdkVersion && compareSdkVersions(draft.maxSdkVersion.trim(), draft.minSdkVersion.trim()) <= 0) errors.maxSdkVersion = "最大版本必须大于最小版本";
+  if (!draft.appVersion.trim()) errors.appVersion = "请输入应用版本";
+  else if (!/^\d+\.\d+\.\d+$/.test(draft.appVersion.trim())) errors.appVersion = "应用版本格式错误";
   return errors;
+}
+
+export function normalizePidRecords(records: (PidRecord | (Omit<PidRecord, "appVersion"> & { appVersion?: string; minSdkVersion?: string }))[]): PidRecord[] {
+  return records.map((record) => ({ ...record, appVersion: record.appVersion ?? ("minSdkVersion" in record ? record.minSdkVersion : "") ?? "" }));
 }
 
 export function filterPidRecords(records: PidRecord[], filters: PidFilters): PidRecord[] {
@@ -85,22 +72,8 @@ export function filterPidRecords(records: PidRecord[], filters: PidFilters): Pid
     && (!filters.scene || record.scene === filters.scene)
     && (!filters.platform || record.platform === filters.platform)
     && (!filters.adSlot || record.adSlot === filters.adSlot)
+    && (!filters.pid.trim() || record.pid.toLocaleLowerCase().includes(filters.pid.trim().toLocaleLowerCase()))
     && (!filters.dspSources.length || filters.dspSources.includes(record.dspSource))
     && (!filters.groupIds.length || record.groupIds.some((groupId) => filters.groupIds.includes(String(groupId))))
-    && matchesSdkVersion(record, filters)
   ));
-}
-
-function matchesSdkVersion(record: PidRecord, filters: PidFilters): boolean {
-  const target = filters.sdkVersion.trim();
-  if (!target) return true;
-  if (filters.sdkVersionOperator === "contains") {
-    return `${record.minSdkVersion}${record.maxSdkVersion ? ` ～ ${record.maxSdkVersion}` : " 以上"}`.includes(target);
-  }
-  if (!/^\d+(?:\.\d+){0,2}$/.test(target)) return false;
-  const comparison = compareSdkVersions(record.minSdkVersion, target);
-  if (filters.sdkVersionOperator === "gte") return comparison >= 0;
-  if (filters.sdkVersionOperator === "lte") return comparison <= 0;
-  if (filters.sdkVersionOperator === "gt") return comparison > 0;
-  return comparison < 0;
 }

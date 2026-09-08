@@ -6,6 +6,7 @@ import {
   PID_AD_SLOTS,
   PID_DSP_SOURCES,
   PID_SCENES,
+  normalizePidRecords,
   type PidDraft,
   type PidDraftErrors,
   type PidFilters,
@@ -26,24 +27,24 @@ type PidManagerProps = {
   onNotify: (message: string) => void;
 };
 
-const emptyFilters = (): PidFilters => ({ scene: "", platform: "", adSlot: "", dspSources: [], sdkVersionOperator: "gte", sdkVersion: "", groupIds: [], showAll: false });
-const emptyDraft = (): PidDraft => ({ dspSource: "", scene: "", platform: "", adSlot: "", pid: "", minSdkVersion: "", maxSdkVersion: "", enabled: true });
+const emptyFilters = (): PidFilters => ({ scene: "", platform: "", adSlot: "", pid: "", dspSources: [], groupIds: [], showAll: false });
+const emptyDraft = (): PidDraft => ({ dspSource: "", scene: "", platform: "", adSlot: "", pid: "", appVersion: "", enabled: true });
 
 const initialPidRecords: PidRecord[] = [
-  { id: 1, pid: "x-1000-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], minSdkVersion: "9.01.0", maxSdkVersion: "" },
-  { id: 2, pid: "gdt-splash-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211, 210], minSdkVersion: "9.01.0", maxSdkVersion: "" },
-  { id: 3, pid: "gdt-splash-premium", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], minSdkVersion: "9.01.0", maxSdkVersion: "10.00.0" },
-  { id: 4, pid: "csj-splash-ios", dspSource: "穿山甲", enabled: false, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], minSdkVersion: "9.02.0", maxSdkVersion: "" },
-  { id: 5, pid: "ks-splash-android", dspSource: "快手", enabled: true, platform: "Android", scene: "开屏", adSlot: "1100-美柚-开屏广告", groupIds: [401], minSdkVersion: "9.03.0", maxSdkVersion: "" },
-  { id: 6, pid: "mtg-interstitial-ios", dspSource: "Mintegral", enabled: true, platform: "IOS", scene: "插屏", adSlot: "2001-美柚-插屏广告", groupIds: [301], minSdkVersion: "9.01.0", maxSdkVersion: "" },
-  { id: 7, pid: "unity-interstitial-android", dspSource: "Unity Ads", enabled: false, platform: "Android", scene: "插屏", adSlot: "2101-美柚-插屏广告", groupIds: [403], minSdkVersion: "9.01.0", maxSdkVersion: "" },
-  { id: 8, pid: "applovin-feed-ios", dspSource: "AppLovin", enabled: true, platform: "IOS", scene: "社区-信息流", adSlot: "3001-社区信息流广告", groupIds: [302, 305], minSdkVersion: "9.04.0", maxSdkVersion: "" },
-  { id: 9, pid: "admob-feed-android", dspSource: "AdMob", enabled: true, platform: "Android", scene: "社区-信息流", adSlot: "3101-社区信息流广告", groupIds: [404], minSdkVersion: "9.04.0", maxSdkVersion: "" },
-  { id: 10, pid: "csj-detail-ios", dspSource: "巨量引擎", enabled: true, platform: "IOS", scene: "社区-详情页", adSlot: "3002-社区详情页广告", groupIds: [306], minSdkVersion: "9.05.0", maxSdkVersion: "" },
-  { id: 11, pid: "gdt-community-other", dspSource: "腾讯广告", enabled: false, platform: "IOS", scene: "社区-其他广告位", adSlot: "3003-社区其他广告位", groupIds: [], minSdkVersion: "9.05.0", maxSdkVersion: "" },
-  { id: 12, pid: "ks-search-ios", dspSource: "快手", enabled: true, platform: "IOS", scene: "搜索", adSlot: "4001-美柚-搜索广告", groupIds: [303], minSdkVersion: "9.06.0", maxSdkVersion: "" },
-  { id: 13, pid: "admob-search-android", dspSource: "AdMob", enabled: true, platform: "Android", scene: "搜索", adSlot: "4101-美柚-搜索广告", groupIds: [405], minSdkVersion: "9.06.0", maxSdkVersion: "" },
-  { id: 14, pid: "applovin-icon-ios", dspSource: "AppLovin", enabled: true, platform: "IOS", scene: "icon", adSlot: "5001-icon广告", groupIds: [], minSdkVersion: "9.07.0", maxSdkVersion: "" },
+  { id: 1, pid: "x-1000-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], appVersion: "9.01.0" },
+  { id: 2, pid: "gdt-splash-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211, 210], appVersion: "9.01.0" },
+  { id: 3, pid: "gdt-splash-premium", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], appVersion: "10.00.0" },
+  { id: 4, pid: "csj-splash-ios", dspSource: "穿山甲", enabled: false, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], appVersion: "9.02.0" },
+  { id: 5, pid: "ks-splash-android", dspSource: "快手", enabled: true, platform: "Android", scene: "开屏", adSlot: "1100-美柚-开屏广告", groupIds: [401], appVersion: "9.03.0" },
+  { id: 6, pid: "mtg-interstitial-ios", dspSource: "Mintegral", enabled: true, platform: "IOS", scene: "插屏", adSlot: "2001-美柚-插屏广告", groupIds: [301], appVersion: "9.01.0" },
+  { id: 7, pid: "unity-interstitial-android", dspSource: "Unity Ads", enabled: false, platform: "Android", scene: "插屏", adSlot: "2101-美柚-插屏广告", groupIds: [403], appVersion: "9.01.0" },
+  { id: 8, pid: "applovin-feed-ios", dspSource: "AppLovin", enabled: true, platform: "IOS", scene: "社区-信息流", adSlot: "3001-社区信息流广告", groupIds: [302, 305], appVersion: "9.04.0" },
+  { id: 9, pid: "admob-feed-android", dspSource: "AdMob", enabled: true, platform: "Android", scene: "社区-信息流", adSlot: "3101-社区信息流广告", groupIds: [404], appVersion: "9.04.0" },
+  { id: 10, pid: "csj-detail-ios", dspSource: "巨量引擎", enabled: true, platform: "IOS", scene: "社区-详情页", adSlot: "3002-社区详情页广告", groupIds: [306], appVersion: "9.05.0" },
+  { id: 11, pid: "gdt-community-other", dspSource: "腾讯广告", enabled: false, platform: "IOS", scene: "社区-其他广告位", adSlot: "3003-社区其他广告位", groupIds: [], appVersion: "9.05.0" },
+  { id: 12, pid: "ks-search-ios", dspSource: "快手", enabled: true, platform: "IOS", scene: "搜索", adSlot: "4001-美柚-搜索广告", groupIds: [303], appVersion: "9.06.0" },
+  { id: 13, pid: "admob-search-android", dspSource: "AdMob", enabled: true, platform: "Android", scene: "搜索", adSlot: "4101-美柚-搜索广告", groupIds: [405], appVersion: "9.06.0" },
+  { id: 14, pid: "applovin-icon-ios", dspSource: "AppLovin", enabled: true, platform: "IOS", scene: "icon", adSlot: "5001-icon广告", groupIds: [], appVersion: "9.07.0" },
 ];
 
 function PidModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -77,7 +78,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
   useEffect(() => {
     try {
       const stored = localStorage.getItem("adx-demo-pid-manager-v1");
-      if (stored) setRecords(JSON.parse(stored));
+      if (stored) setRecords(normalizePidRecords(JSON.parse(stored)));
     } catch { /* keep seeded records */ }
     setHydrated(true);
   }, []);
@@ -125,7 +126,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
 
   const openEdit = (record: PidRecord) => {
     setEditingId(record.id);
-    setDraft({ dspSource: record.dspSource, scene: record.scene, platform: record.platform, adSlot: record.adSlot, pid: record.pid, minSdkVersion: record.minSdkVersion, maxSdkVersion: record.maxSdkVersion, enabled: record.enabled });
+    setDraft({ dspSource: record.dspSource, scene: record.scene, platform: record.platform, adSlot: record.adSlot, pid: record.pid, appVersion: record.appVersion, enabled: record.enabled });
     setErrors({});
     setShowForm(true);
   };
@@ -143,10 +144,10 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
     if (Object.keys(nextErrors).length) return;
 
     if (editingId === null) {
-      setRecords((current) => [{ id: Date.now(), ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), minSdkVersion: draft.minSdkVersion.trim(), maxSdkVersion: draft.maxSdkVersion.trim(), groupIds: [] }, ...current]);
+      setRecords((current) => [{ id: Date.now(), ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim(), groupIds: [] }, ...current]);
       onNotify("新增成功");
     } else {
-      setRecords((current) => current.map((record) => record.id === editingId ? { ...record, ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), minSdkVersion: draft.minSdkVersion.trim(), maxSdkVersion: draft.maxSdkVersion.trim() } : record));
+      setRecords((current) => current.map((record) => record.id === editingId ? { ...record, ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim() } : record));
       onNotify("保存成功");
     }
     setAppliedFilters({ ...filters });
@@ -172,15 +173,15 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
       <label>广告场景<select aria-label="PID广告场景筛选" value={filters.scene} onChange={(event) => setFilters({ ...filters, scene: event.target.value })}><option value="">全部场景</option>{PID_SCENES.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>平台<select aria-label="PID平台筛选" value={filters.platform} onChange={(event) => setFilters({ ...filters, platform: event.target.value })}><option value="">全部平台</option><option value="Android">安卓</option><option value="IOS">iOS</option></select></label>
       <label>广告位<select aria-label="PID广告位筛选" value={filters.adSlot} onChange={(event) => setFilters({ ...filters, adSlot: event.target.value })}><option value="">全部广告位</option>{allFilterSlots.map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label>PID<input aria-label="PID维度筛选" value={filters.pid} placeholder="请输入 PID" onChange={(event) => setFilters({ ...filters, pid: event.target.value })} /></label>
       <MultiSelectFilter label="DSP 来源" values={filters.dspSources} options={PID_DSP_SOURCES.map((source) => ({ value: source, label: source }))} onToggle={(value) => toggleArrayFilter("dspSources", value)} onClear={() => setFilters((current) => ({ ...current, dspSources: [] }))} />
-      <div className="pid-filter-field"><span>SDK 版本</span><div className="pid-version-filter"><select aria-label="SDK版本关系" value={filters.sdkVersionOperator} onChange={(event) => setFilters({ ...filters, sdkVersionOperator: event.target.value as PidFilters["sdkVersionOperator"] })}><option value="gte">大于等于</option><option value="lte">小于等于</option><option value="gt">大于</option><option value="lt">小于</option><option value="contains">包含</option></select><input aria-label="SDK版本筛选值" value={filters.sdkVersion} placeholder="如 9.01.0" onChange={(event) => setFilters({ ...filters, sdkVersion: event.target.value })} /></div></div>
       <MultiSelectFilter label="分组" values={filters.groupIds} options={groupFilterOptions} onToggle={(value) => toggleArrayFilter("groupIds", value)} onClear={() => setFilters((current) => ({ ...current, groupIds: [] }))} />
       <div className="pid-filter-actions"><button type="submit" className="primary">查询</button><button type="button" className="secondary" onClick={reset}>重置</button></div>
     </form>
 
     <div className="pid-list-heading"><div><strong>PID 列表</strong><span>共 {filteredRecords.length} 条</span></div><div className="pid-list-heading-actions"><label className="pid-show-all-toggle"><input type="checkbox" checked={filters.showAll} onChange={(event) => { const showAll = event.target.checked; setFilters((current) => ({ ...current, showAll })); setAppliedFilters((current) => ({ ...current, showAll })); setPage(1); }} /><span>展示全部 PID</span></label><button type="button" className="primary" onClick={openCreate}>＋ 新增 PID</button></div></div>
-    <div className="table-wrap pid-management-table"><table><thead><tr><th>PID</th><th>DSP 来源</th><th>状态</th><th>平台</th><th>广告场景</th><th>广告位</th><th>SDK 版本配置</th><th>绑定分组信息</th><th>操作</th></tr></thead><tbody>
-      {visibleRecords.map((record) => <tr key={record.id}><td><strong>{record.pid}</strong></td><td>{record.dspSource}</td><td><span className={`pid-status ${record.enabled ? "enabled" : "disabled"}`}>{record.enabled ? "开启" : "停用"}</span></td><td>{record.platform === "IOS" ? "iOS" : "安卓"}</td><td>{record.scene}</td><td>{record.adSlot}</td><td>{record.minSdkVersion}{record.maxSdkVersion ? ` ～ ${record.maxSdkVersion}` : " 以上"}</td><td>{record.groupIds.length ? <div className="bound-groups">{record.groupIds.map((groupId) => { const group = groups.find((item) => item.id === groupId); return group ? <button type="button" className={!record.enabled ? "invalid" : ""} key={groupId} onClick={() => onOpenGroup(groupId)}>{group.name}{!record.enabled ? "（失效）" : ""}</button> : null; })}</div> : "-"}</td><td><div className="pid-row-actions"><button type="button" onClick={() => openEdit(record)}>编辑</button>{record.enabled ? <button type="button" className="danger" onClick={() => setPendingDisableId(record.id)}>停用</button> : <button type="button" onClick={() => enableRecord(record)}>启用</button>}</div></td></tr>)}
+    <div className="table-wrap pid-management-table"><table><thead><tr><th>PID</th><th>DSP 来源</th><th>状态</th><th>平台</th><th>广告场景</th><th>广告位</th><th>应用版本</th><th>绑定分组信息</th><th>操作</th></tr></thead><tbody>
+      {visibleRecords.map((record) => <tr key={record.id}><td><strong>{record.pid}</strong></td><td>{record.dspSource}</td><td><span className={`pid-status ${record.enabled ? "enabled" : "disabled"}`}>{record.enabled ? "开启" : "停用"}</span></td><td>{record.platform === "IOS" ? "iOS" : "安卓"}</td><td>{record.scene}</td><td>{record.adSlot}</td><td>{record.appVersion}</td><td>{record.groupIds.length ? <div className="bound-groups">{record.groupIds.map((groupId) => { const group = groups.find((item) => item.id === groupId); return group ? <button type="button" className={!record.enabled ? "invalid" : ""} key={groupId} onClick={() => onOpenGroup(groupId)}>{group.name}{!record.enabled ? "（失效）" : ""}</button> : null; })}</div> : "-"}</td><td><div className="pid-row-actions"><button type="button" onClick={() => openEdit(record)}>编辑</button>{record.enabled ? <button type="button" className="danger" onClick={() => setPendingDisableId(record.id)}>停用</button> : <button type="button" onClick={() => enableRecord(record)}>启用</button>}</div></td></tr>)}
       {!visibleRecords.length && <tr><td colSpan={9}><div className="empty">暂无符合筛选条件的 PID</div></td></tr>}
     </tbody></table></div>
 
@@ -192,8 +193,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
       <PidFormField label="平台" error={errors.platform}><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value as PidDraft["platform"], adSlot: "" })}><option value="">请选择平台</option><option value="Android">安卓</option><option value="IOS">iOS</option></select></PidFormField>
       <PidFormField label="广告位" error={errors.adSlot}><select value={draft.adSlot} onChange={(event) => setDraft({ ...draft, adSlot: event.target.value })}><option value="">请选择广告位</option>{formSlots.map((slot) => <option key={`${slot.platform}-${slot.value}`} value={slot.value}>{slot.value}</option>)}</select></PidFormField>
       <PidFormField label="PID" error={errors.pid}><input value={draft.pid} placeholder="请输入 PID" maxLength={64} onChange={(event) => setDraft({ ...draft, pid: event.target.value })} /></PidFormField>
-      <PidFormField label="最低 SDK 版本" error={errors.minSdkVersion}><input value={draft.minSdkVersion} placeholder="如 9.01.0" onChange={(event) => setDraft({ ...draft, minSdkVersion: event.target.value })} /></PidFormField>
-      <PidFormField label="最高 SDK 版本" error={errors.maxSdkVersion}><input value={draft.maxSdkVersion} placeholder="选填，须大于最低版本" onChange={(event) => setDraft({ ...draft, maxSdkVersion: event.target.value })} /></PidFormField>
+      <PidFormField label="应用版本" error={errors.appVersion}><input value={draft.appVersion} placeholder="如 9.01.0" onChange={(event) => setDraft({ ...draft, appVersion: event.target.value })} /></PidFormField>
       <div className="pid-form-field"><span>状态</span><div className="pid-status-control"><button type="button" role="switch" aria-checked={draft.enabled} aria-label="PID状态" className={`toggle ${draft.enabled ? "on" : ""}`} onClick={() => setDraft({ ...draft, enabled: !draft.enabled })}><span /></button><span>{draft.enabled ? "开启" : "停用"}</span></div></div>
     </div><div className="modal-actions"><button type="button" className="secondary" onClick={closeForm}>取消</button><button type="submit" className="primary">提交</button></div></form></PidModal>}
 
