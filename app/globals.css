@@ -270,6 +270,7 @@ tr:last-child td { border-bottom: 0; }
 .ab-experiment-info em.ended { background: #f2f3f4; color: #858a92; }
 .ab-traffic-log-entry { white-space: nowrap; }
 .ab-report-card { margin-top: 24px; overflow: hidden; border: 1px solid var(--line); border-radius: 4px; background: white; }
+.ab-experiment-overview-card { margin-top: 18px; }
 .ab-report-section-heading { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
 .ab-report-section-heading h2 { margin: 0; color: #454a51; font-size: 16px; }
 .ab-report-section-heading h2 small { margin-left: 5px; color: #8d929b; font-size: 13px; font-weight: 400; }
@@ -280,6 +281,20 @@ tr:last-child td { border-bottom: 0; }
 .ab-detail-actions > label { display: flex; align-items: center; gap: 8px; color: #666b72; white-space: nowrap; }
 .ab-detail-actions > label > div { display: flex; align-items: center; gap: 6px; }
 .ab-detail-actions input { width: 140px; }
+.ab-show-all-toggle { display: inline-flex; align-items: center; gap: 8px; color: #5f646b; cursor: pointer; white-space: nowrap; }
+.ab-show-all-toggle input { width: 16px; height: 16px; accent-color: var(--pink); }
+.ab-experiment-overview-table { margin: 0; border: 0; }
+.ab-experiment-overview-table table { min-width: 980px; }
+.ab-experiment-overview-table th, .ab-experiment-overview-table td { text-align: left; }
+.ab-experiment-overview-table th:first-child, .ab-experiment-overview-table td:first-child { width: 100px; }
+.ab-experiment-overview-table th:nth-child(2), .ab-experiment-overview-table td:nth-child(2) { min-width: 260px; }
+.ab-experiment-overview-table th:nth-child(3), .ab-experiment-overview-table td:nth-child(3), .ab-experiment-overview-table th:nth-child(4), .ab-experiment-overview-table td:nth-child(4) { min-width: 175px; }
+.ab-experiment-overview-table tr.selected td { background: #fff8fb; }
+.ab-experiment-overview-table td strong { display: block; color: #464b52; }
+.ab-experiment-overview-table td small { display: block; margin-top: 4px; color: #92969d; }
+.ab-list-status { display: inline-flex; padding: 3px 9px; border-radius: 10px; font-size: 12px; font-style: normal; font-weight: 600; white-space: nowrap; }
+.ab-list-status.ongoing { background: #eef9f3; color: #2f9967; }
+.ab-list-status.ended { background: #f2f3f4; color: #858a92; }
 .ab-comparison-table, .ab-detail-table { margin: 0; border: 0; }
 .ab-comparison-table table { min-width: 1650px; }
 .ab-comparison-table th, .ab-comparison-table td { min-width: 110px; text-align: right; }

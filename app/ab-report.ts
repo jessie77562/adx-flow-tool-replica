@@ -62,6 +62,10 @@ export function resolveAbExperimentId(experiments: AbExperimentSource[], selecte
   return experiments[0] ? String(experiments[0].id) : "";
 }
 
+export function sortAbExperimentsByCreatedAt<T extends Pick<AbExperiment, "startAt">>(experiments: T[]): T[] {
+  return [...experiments].sort((left, right) => right.startAt.localeCompare(left.startAt));
+}
+
 function parseDate(value: string): Date {
   return new Date(`${value}T00:00:00`);
 }

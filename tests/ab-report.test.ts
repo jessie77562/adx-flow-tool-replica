@@ -11,6 +11,7 @@ import {
   getOngoingAbExperiments,
   metricLift,
   resolveAbExperimentId,
+  sortAbExperimentsByCreatedAt,
   summarizeAbGroup,
   validateAbDateRange,
   validateAbHourlyDate,
@@ -35,6 +36,12 @@ test("defaults to the first ongoing experiment and preserves a valid selection",
   assert.equal(resolveAbExperimentId(ongoing, "4"), "4");
   assert.equal(resolveAbExperimentId(ongoing, "99"), "2");
   assert.equal(resolveAbExperimentId([], ""), "");
+});
+
+test("sorts the A/B experiment overview by creation time descending", () => {
+  const sorted = sortAbExperimentsByCreatedAt(AB_EXPERIMENTS);
+  assert.ok(sorted.every((experiment, index) => index === 0 || sorted[index - 1].startAt >= experiment.startAt));
+  assert.deepEqual(sorted.map((experiment) => experiment.id), [1006, 1005, 1003, 1002, 1001, 1004]);
 });
 
 test("searches ongoing experiments by group or test name", () => {
