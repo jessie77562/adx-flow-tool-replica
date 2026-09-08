@@ -276,6 +276,10 @@ tr:last-child td { border-bottom: 0; }
 .ab-section-title { min-width: 0; display: grid; gap: 7px; }
 .ab-section-title > span { color: #858a92; font-size: 13px; }
 .ab-section-title > span strong { color: #555a61; font-weight: 600; }
+.ab-detail-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
+.ab-detail-actions > label { display: flex; align-items: center; gap: 8px; color: #666b72; white-space: nowrap; }
+.ab-detail-actions > label > div { display: flex; align-items: center; gap: 6px; }
+.ab-detail-actions input { width: 140px; }
 .ab-comparison-table, .ab-detail-table { margin: 0; border: 0; }
 .ab-comparison-table table { min-width: 1650px; }
 .ab-comparison-table th, .ab-comparison-table td { min-width: 110px; text-align: right; }
@@ -325,6 +329,10 @@ tr:last-child td { border-bottom: 0; }
 .ab-group-badge { width: 19px; height: 19px; display: inline-flex; align-items: center; justify-content: center; margin-right: 7px; border-radius: 50%; color: white; font-size: 11px; font-weight: 700; }
 .ab-group-badge.a { background: #73bc2f; }
 .ab-group-badge.b { background: #f39a3f; }
+.ab-hourly-detail-table { margin: 0; border: 0; }
+.ab-hourly-detail-table table { min-width: 680px; }
+.ab-hourly-detail-table th, .ab-hourly-detail-table td { text-align: right; }
+.ab-hourly-detail-table th:first-child, .ab-hourly-detail-table td:first-child { width: 40%; text-align: left; }
 .modal.ab-traffic-log-modal { width: min(760px, 96vw); }
 .traffic-log-body { display: grid; gap: 18px; padding: 22px 26px 26px; }
 .traffic-log-summary { display: grid; gap: 6px; }
@@ -551,6 +559,10 @@ tr:last-child td { border-bottom: 0; }
   .ab-chart-controls > label { width: 100%; align-items: flex-start; flex-direction: column; }
   .ab-chart-controls > label > div { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; }
   .ab-chart-controls select, .ab-chart-controls input { width: 100%; }
+  .ab-detail-actions { width: 100%; align-items: stretch; flex-direction: column; }
+  .ab-detail-actions > label { align-items: flex-start; flex-direction: column; }
+  .ab-detail-actions > label > div { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; }
+  .ab-detail-actions input { width: 100%; }
   .ab-line-chart { overflow-x: auto; }
   .ab-line-chart svg { width: 760px; }
   .experiment-page-heading { align-items: flex-start; }
