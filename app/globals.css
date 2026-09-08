@@ -273,6 +273,9 @@ tr:last-child td { border-bottom: 0; }
 .ab-report-section-heading { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
 .ab-report-section-heading h2 { margin: 0; color: #454a51; font-size: 16px; }
 .ab-report-section-heading h2 small { margin-left: 5px; color: #8d929b; font-size: 13px; font-weight: 400; }
+.ab-section-title { min-width: 0; display: grid; gap: 7px; }
+.ab-section-title > span { color: #858a92; font-size: 13px; }
+.ab-section-title > span strong { color: #555a61; font-weight: 600; }
 .ab-comparison-table, .ab-detail-table { margin: 0; border: 0; }
 .ab-comparison-table table { min-width: 1650px; }
 .ab-comparison-table th, .ab-comparison-table td { min-width: 110px; text-align: right; }
@@ -309,8 +312,19 @@ tr:last-child td { border-bottom: 0; }
 .ab-chart-tooltip i.a, .ab-chart-legend i.a { background: #3978d7; }
 .ab-chart-tooltip i.b, .ab-chart-legend i.b { background: #f39a3f; }
 .ab-chart-legend { display: flex; align-items: center; justify-content: center; gap: 28px; padding: 0 20px 18px; color: #686d74; font-size: 13px; }
-.ab-detail-table table { min-width: 720px; }
-.ab-detail-table th:not(:first-child), .ab-detail-table td:not(:first-child) { text-align: right; }
+.ab-detail-table table { min-width: 1780px; }
+.ab-detail-table th, .ab-detail-table td { min-width: 108px; text-align: right; }
+.ab-detail-table .ab-time-column { position: sticky; z-index: 1; left: 0; min-width: 148px; text-align: left; background: white; box-shadow: 1px 0 #eceef0; }
+.ab-detail-table th.ab-time-column { z-index: 3; background: #fafafa; }
+.ab-detail-table .ab-group-column { position: sticky; z-index: 1; left: 148px; min-width: 118px; text-align: left; background: white; box-shadow: 1px 0 #eceef0; }
+.ab-detail-table th.ab-group-column { z-index: 2; background: #fafafa; }
+.ab-detail-table tr:nth-child(even):not(.ab-detail-total) td { background: #fcfcfd; }
+.ab-detail-table tr:nth-child(even):not(.ab-detail-total) .ab-time-column, .ab-detail-table tr:nth-child(even):not(.ab-detail-total) .ab-group-column { background: white; }
+.ab-detail-table .ab-detail-total td { background: #fff8fb; font-weight: 600; }
+.ab-detail-table .ab-detail-total .ab-time-column, .ab-detail-table .ab-detail-total .ab-group-column { background: #fff8fb; }
+.ab-group-badge { width: 19px; height: 19px; display: inline-flex; align-items: center; justify-content: center; margin-right: 7px; border-radius: 50%; color: white; font-size: 11px; font-weight: 700; }
+.ab-group-badge.a { background: #73bc2f; }
+.ab-group-badge.b { background: #f39a3f; }
 .modal.ab-traffic-log-modal { width: min(760px, 96vw); }
 .traffic-log-body { display: grid; gap: 18px; padding: 22px 26px 26px; }
 .traffic-log-summary { display: grid; gap: 6px; }
