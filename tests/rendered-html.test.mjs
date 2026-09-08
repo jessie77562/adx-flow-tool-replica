@@ -109,6 +109,7 @@ test("keeps the restored interactions in the client surface", async () => {
     "数据统计生效周期",
     "查看 A、B 两组全部指标",
     "AB测试明细_全指标",
+    "label: \"DAU\"",
     "对比涨幅",
     "A 对照组",
     "B 测试组",

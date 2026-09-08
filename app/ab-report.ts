@@ -15,7 +15,7 @@ export type AbExperiment = AbExperimentSource & {
   effect: number;
 };
 
-export type AbMetricKey = "revenuePerThousandUsers" | "revenue" | "ecpm" | "requestValue" | "requests" | "returnRate" | "bidWins" | "bidSuccessRate" | "impressions" | "winImpressionRate" | "clicks" | "ctr" | "cpc";
+export type AbMetricKey = "revenuePerThousandUsers" | "users" | "revenue" | "ecpm" | "requestValue" | "requests" | "returnRate" | "bidWins" | "bidSuccessRate" | "impressions" | "winImpressionRate" | "clicks" | "ctr" | "cpc";
 
 export type AbGroupMetrics = {
   users: number;

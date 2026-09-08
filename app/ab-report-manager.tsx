@@ -26,6 +26,7 @@ type MetricDefinition = { label: string; description: string; formula?: string; 
 
 const comparisonMetrics: MetricOption[] = [
   { key: "revenuePerThousandUsers", label: "千人均收益", type: "decimal" },
+  { key: "users", label: "DAU", type: "number" },
   { key: "revenue", label: "预估收入", type: "money" },
   { key: "ecpm", label: "eCPM", type: "decimal" },
   { key: "requestValue", label: "千次请求价值", type: "decimal" },
@@ -40,10 +41,11 @@ const comparisonMetrics: MetricOption[] = [
   { key: "cpc", label: "cpc", type: "money" },
 ];
 
-const chartMetricKeys: AbMetricKey[] = ["revenuePerThousandUsers", "revenue", "ecpm", "requests", "impressions", "clicks", "ctr", "bidSuccessRate", "winImpressionRate", "cpc"];
+const chartMetricKeys: AbMetricKey[] = ["revenuePerThousandUsers", "users", "revenue", "ecpm", "requests", "impressions", "clicks", "ctr", "bidSuccessRate", "winImpressionRate", "cpc"];
 const chartMetrics = comparisonMetrics.filter((metric) => chartMetricKeys.includes(metric.key));
 const metricDefinitions: MetricDefinition[] = [
   { label: "千人均收益", description: "每千个活跃用户带来的广告收入，用于衡量用户整体变现效率。", formula: "预估收入 ÷ 用户数 × 1000", freshness: "T+1" },
+  { label: "DAU", description: "统计周期内产生有效活跃行为的去重用户数，用于衡量实验覆盖的日活跃用户规模。", formula: "统计周期内活跃用户去重计数", freshness: "T+1" },
   { label: "预估收入", description: "当前统计周期内，各广告来源产生的预估广告收入之和。", formula: "各广告来源预估收入之和", freshness: "实时" },
   { label: "eCPM", description: "每一千次有效广告展示带来的预估收入。", formula: "预估收入 ÷ 展示量 × 1000", freshness: "实时" },
   { label: "千次请求价值", description: "每一千次进入 ADX 的广告请求带来的预估收入。", formula: "预估收入 ÷ 请求量 × 1000", freshness: "实时" },
