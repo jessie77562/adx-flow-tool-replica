@@ -281,6 +281,8 @@ tr:last-child td { border-bottom: 0; }
 .ab-detail-actions > label { display: flex; align-items: center; gap: 8px; color: #666b72; white-space: nowrap; }
 .ab-detail-actions > label > div { display: flex; align-items: center; gap: 6px; }
 .ab-detail-actions input { width: 140px; }
+.ab-detail-actions .ab-group-comparison-toggle { gap: 7px; cursor: pointer; }
+.ab-detail-actions .ab-group-comparison-toggle input { width: 16px; height: 16px; accent-color: var(--pink); }
 .ab-show-all-toggle { display: inline-flex; align-items: center; gap: 8px; color: #5f646b; cursor: pointer; white-space: nowrap; }
 .ab-show-all-toggle input { width: 16px; height: 16px; accent-color: var(--pink); }
 .ab-experiment-overview-table { margin: 0; border: 0; }
@@ -341,6 +343,7 @@ tr:last-child td { border-bottom: 0; }
 .ab-detail-table tr:nth-child(even):not(.ab-detail-total) .ab-time-column, .ab-detail-table tr:nth-child(even):not(.ab-detail-total) .ab-group-column { background: white; }
 .ab-detail-table .ab-detail-total td { background: #fff8fb; font-weight: 600; }
 .ab-detail-table .ab-detail-total .ab-time-column, .ab-detail-table .ab-detail-total .ab-group-column { background: #fff8fb; }
+.ab-inline-lift { display: block; margin-top: 5px; font-size: 12px; font-weight: 600; }
 .ab-group-badge { width: 19px; height: 19px; display: inline-flex; align-items: center; justify-content: center; margin-right: 7px; border-radius: 50%; color: white; font-size: 11px; font-weight: 700; }
 .ab-group-badge.a { background: #73bc2f; }
 .ab-group-badge.b { background: #f39a3f; }
@@ -574,6 +577,8 @@ tr:last-child td { border-bottom: 0; }
   .ab-detail-actions > label { align-items: flex-start; flex-direction: column; }
   .ab-detail-actions > label > div { width: 100%; display: grid; grid-template-columns: 1fr auto 1fr; }
   .ab-detail-actions input { width: 100%; }
+  .ab-detail-actions > .ab-group-comparison-toggle { align-items: center; flex-direction: row; }
+  .ab-detail-actions .ab-group-comparison-toggle input { width: 16px; }
   .ab-line-chart { overflow-x: auto; }
   .ab-line-chart svg { width: 760px; }
   .experiment-page-heading { align-items: flex-start; }
