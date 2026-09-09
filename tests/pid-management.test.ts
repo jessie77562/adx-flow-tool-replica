@@ -7,7 +7,7 @@ const records: PidRecord[] = [
   { id: 2, pid: "pid-android-feed", dspSource: "AdMob", enabled: false, platform: "Android", scene: "社区-信息流", adSlot: "3101-社区信息流广告", groupIds: [], appVersion: "10.00.0" },
 ];
 
-const validDraft: PidDraft = { pid: "new-pid-01", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", appVersion: "9.01.0" };
+const validDraft: PidDraft = { pid: "new-pid-01", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", appVersion: "9.01.0", maxAppVersion: "", size: "全尺寸", customSize: "", floor: 0.3 };
 
 test("validates required PID fields", () => {
   const errors = validatePidDraft({ ...validDraft, pid: "", dspSource: "", scene: "", platform: "", adSlot: "", appVersion: "" }, records, null);
@@ -27,6 +27,9 @@ test("enforces global PID uniqueness while allowing the current edit", () => {
 test("validates PID and application version formats", () => {
   assert.equal(validatePidDraft({ ...validDraft, pid: "无效 PID" }, records, null).pid, "PID 格式错误");
   assert.equal(validatePidDraft({ ...validDraft, appVersion: "10.0" }, records, null).appVersion, "应用版本格式错误");
+  assert.equal(validatePidDraft({ ...validDraft, maxAppVersion: "8.09.0" }, records, null).maxAppVersion, "最大版本必须大于最小版本");
+  assert.equal(validatePidDraft({ ...validDraft, size: "自定义", customSize: "" }, records, null).customSize, "请输入自定义尺寸");
+  assert.equal(validatePidDraft({ ...validDraft, floor: 0 }, records, null).floor, "底价必须大于 0");
 });
 
 test("filters PID records by the applied conditions", () => {

@@ -10,6 +10,10 @@ export type PidRecord = {
   adSlot: string;
   groupIds: number[];
   appVersion: string;
+  maxAppVersion?: string;
+  size?: "全尺寸" | "自定义";
+  customSize?: string;
+  floor?: number;
 };
 
 export type PidFilters = {
@@ -22,7 +26,13 @@ export type PidFilters = {
   showAll: boolean;
 };
 
-export type PidDraft = Omit<PidRecord, "id" | "groupIds" | "platform"> & { platform: PidPlatform | "" };
+export type PidDraft = Omit<PidRecord, "id" | "groupIds" | "platform" | "maxAppVersion" | "size" | "customSize" | "floor"> & {
+  platform: PidPlatform | "";
+  maxAppVersion: string;
+  size: "全尺寸" | "自定义";
+  customSize: string;
+  floor: number;
+};
 
 export type PidDraftErrors = Partial<Record<keyof PidDraft, string>>;
 
@@ -59,11 +69,24 @@ export function validatePidDraft(draft: PidDraft, records: PidRecord[], editingI
 
   if (!draft.appVersion.trim()) errors.appVersion = "请输入应用版本";
   else if (!/^\d+\.\d+\.\d+$/.test(draft.appVersion.trim())) errors.appVersion = "应用版本格式错误";
+  else if (draft.maxAppVersion.trim() && !/^\d+\.\d+\.\d+$/.test(draft.maxAppVersion.trim())) errors.maxAppVersion = "应用版本格式错误";
+  else if (draft.maxAppVersion.trim() && compareVersions(draft.maxAppVersion, draft.appVersion) <= 0) errors.maxAppVersion = "最大版本必须大于最小版本";
+  if (draft.size === "自定义" && !draft.customSize.trim()) errors.customSize = "请输入自定义尺寸";
+  if (!Number.isFinite(draft.floor) || draft.floor <= 0) errors.floor = "底价必须大于 0";
   return errors;
 }
 
+function compareVersions(left: string, right: string): number {
+  const a = left.split(".").map(Number);
+  const b = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] - b[index];
+  }
+  return 0;
+}
+
 export function normalizePidRecords(records: (PidRecord | (Omit<PidRecord, "appVersion"> & { appVersion?: string; minSdkVersion?: string }))[]): PidRecord[] {
-  return records.map((record) => ({ ...record, appVersion: record.appVersion ?? ("minSdkVersion" in record ? record.minSdkVersion : "") ?? "" }));
+  return records.map((record) => ({ ...record, appVersion: record.appVersion ?? ("minSdkVersion" in record ? record.minSdkVersion : "") ?? "", maxAppVersion: record.maxAppVersion ?? "", size: record.size ?? "全尺寸", customSize: record.customSize ?? "", floor: record.floor ?? 0.3 }));
 }
 
 export function filterPidRecords(records: PidRecord[], filters: PidFilters): PidRecord[] {
