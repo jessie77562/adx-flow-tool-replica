@@ -50,12 +50,6 @@ function ExperimentConfigTable({ title, configs, onChange, allowBatchFloor = fal
   </div>;
 }
 
-const comparisonRows = [
-  ["A（对照组）", "128,420", "156.82", "¥20,138.46", "7.18", "102.41", "196,646", "81.24%", "98,312", "1,652", "0.82%", "¥12.19"],
-  ["B（实验组）", "129,106", "172.29", "¥22,242.18", "7.66", "109.32", "203,458", "82.63%", "105,426", "1,804", "0.86%", "¥12.33"],
-  ["对比涨幅", "+0.53%", "+9.86%", "+10.45%", "+6.69%", "+6.75%", "+3.46%", "+1.71%", "+7.24%", "+9.20%", "+4.88%", "+1.15%"],
-];
-
 export default function GroupExperimentManager({ group, dsps, experiment, onBack, onChange, onNotify }: { group: GroupSummary; dsps: DspSummary[]; experiment?: GroupExperiment; onBack: () => void; onChange: (experiment: GroupExperiment) => void; onNotify: (message: string) => void }) {
   const isCreate = !experiment;
   const initialA = experiment?.aConfig.length ? cloneConfigs(experiment.aConfig) : seedConfigs(dsps);
@@ -134,7 +128,6 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
 
     {isCreate ? <section className="experiment-section"><h2>实验配置</h2><div className="experiment-tabs"><button type="button" className={activeConfig === "A" ? "active" : ""} onClick={() => setActiveConfig("A")}>对照组(A)</button><button type="button" className={activeConfig === "B" ? "active" : ""} onClick={() => setActiveConfig("B")}>实验组(B)</button></div>{activeConfig === "A" ? <ExperimentConfigTable title="A组已启用DSP来源" configs={aConfig} onChange={setAConfig} onNotify={onNotify} /> : copyAtoB ? <ExperimentConfigTable title="B组配置（同步A组）" configs={aConfig} onChange={setAConfig} allowBatchFloor onNotify={onNotify} /> : <ExperimentConfigTable title="B组已启用DSP来源" configs={bConfig} onChange={setBConfig} allowBatchFloor onNotify={onNotify} />}</section> : <>
       <section className="experiment-section experiment-actions"><div><h2>流量决策</h2><p>选择推全组并确认后，分组流量将 100% 按该组配置执行。</p></div><div className="experiment-allocation-buttons"><button type="button" className={aTraffic === 100 ? "active" : ""} onClick={() => setPendingAllocation("A")}>全量A组</button><button type="button" className={bTraffic === 100 ? "active" : ""} onClick={() => setPendingAllocation("B")}>全量B组</button></div></section>
-      <section className="experiment-section"><div className="experiment-table-heading"><h2>A/B测试数据对比</h2><span>实验全周期汇总数据</span></div><div className="table-wrap experiment-result-table"><table><thead><tr>{["组别", "累计入组用户", "千人均收益", "预估收入", "eCPM", "千次请求价值", "请求量", "返回率", "展示量", "点击数", "点击率", "CPC"].map((item) => <th key={item}>{item}</th>)}</tr></thead><tbody>{comparisonRows.map((row, rowIndex) => <tr key={row[0]} className={rowIndex === 2 ? "experiment-lift-row" : ""}>{row.map((value, index) => <td key={`${row[0]}-${index}`} className={rowIndex === 2 && index > 0 ? (value.startsWith("+") ? "positive" : value.startsWith("-") ? "negative" : "flat") : ""}>{value}</td>)}</tr>)}</tbody></table></div></section>
     </>}
 
     <div className="experiment-page-actions"><button type="button" className="secondary" onClick={onBack}>取消</button>{isCreate ? <><button type="button" className="secondary" onClick={() => submit("save")}>保存</button><button type="button" className="primary" onClick={() => submit("start")}>开启测试</button></> : <><button type="button" className="secondary" onClick={saveName}>保存修改</button>{experiment.status === "draft" && <button type="button" className="primary" onClick={() => { const next = startExperiment(buildRecord("draft")); onChange(next); onNotify("A/B测试已开启"); }}>开启测试</button>}</>}</div>

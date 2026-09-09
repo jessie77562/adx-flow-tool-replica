@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, reorderGroupPriority, setManagedGroupsEnabled } from "../app/group-management.ts";
+import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, setManagedGroupsEnabled, sortGroupsByPriority, validateGroupPriorities } from "../app/group-management.ts";
 
 const groups = [
   { id: 1, priority: 30, enabled: true },
@@ -33,20 +33,12 @@ test("selects the highest-priority effective group by default", () => {
   assert.equal(highestEffectiveGroupId([{ id: 8, priority: 10, enabled: false }]), null);
 });
 
-test("drag sorting recalculates scoped priorities and keeps default last", () => {
-  const result = reorderGroupPriority(groups, [1, 2, 3], 2, 1);
-  const scoped = result.filter((group) => [1, 2, 3].includes(group.id));
-  assert.deepEqual(scoped.map((group) => group.id), [2, 1, 3]);
-  assert.equal(scoped[0].priority, 3);
-  assert.equal(scoped[2].priority, 1);
-  assert.equal(result.find((group) => group.id === 4)?.priority, 99);
+test("sorts groups by numeric priority from high to low", () => {
+  assert.deepEqual(sortGroupsByPriority(groups).map((group) => group.id), [4, 1, 2, 3]);
 });
 
-test("drag sorting works in both directions and ignores attempts to drag the default group", () => {
-  const movedDown = reorderGroupPriority(groups, [1, 2, 3], 1, 2);
-  assert.deepEqual(movedDown.filter((group) => [1, 2, 3].includes(group.id)).map((group) => group.id), [2, 1, 3]);
-
-  const defaultDrag = reorderGroupPriority(groups, [1, 2, 3], 3, 1);
-  assert.deepEqual(defaultDrag.map((group) => group.id), groups.map((group) => group.id));
-  assert.equal(defaultDrag.find((group) => group.id === 3)?.enabled, true);
+test("validates manually entered priority values", () => {
+  assert.equal(validateGroupPriorities(groups), "");
+  assert.equal(validateGroupPriorities([{ ...groups[0], priority: 0 }]), "优先级必须为大于 0 的整数");
+  assert.equal(validateGroupPriorities([{ ...groups[0], priority: 20 }, groups[1]]), "优先级数值不可重复，请重新设置");
 });

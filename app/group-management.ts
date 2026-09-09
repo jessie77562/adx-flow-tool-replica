@@ -18,41 +18,16 @@ export function setManagedGroupsEnabled<T extends ManagedGroup>(groups: T[], sel
 }
 
 export function highestEffectiveGroupId<T extends ManagedGroup>(groups: T[]): number | null {
-  const highest = [...groups]
-    .filter((group) => group.enabled || group.isDefault)
-    .sort((a, b) => b.priority - a.priority)[0];
+  const highest = sortGroupsByPriority(groups.filter((group) => group.enabled || group.isDefault))[0];
   return highest?.id ?? null;
 }
 
-export function reorderGroupPriority<T extends ManagedGroup>(
-  groups: T[],
-  scopeIds: number[],
-  draggedId: number,
-  targetId: number,
-): T[] {
-  const scopedGroups = scopeIds.map((id) => groups.find((group) => group.id === id)).filter((group): group is T => Boolean(group));
-  const dragged = scopedGroups.find((group) => group.id === draggedId);
-  if (!dragged || dragged.isDefault || draggedId === targetId) return ensureDefaultGroupsEnabled(groups);
+export function sortGroupsByPriority<T extends ManagedGroup>(groups: T[]): T[] {
+  return [...groups].sort((a, b) => b.priority - a.priority || a.id - b.id);
+}
 
-  const orderedIds = scopedGroups.map((group) => group.id);
-  const sourceIndex = orderedIds.indexOf(draggedId);
-  const targetIndex = orderedIds.indexOf(targetId);
-  if (sourceIndex < 0 || targetIndex < 0) return ensureDefaultGroupsEnabled(groups);
-
-  orderedIds.splice(sourceIndex, 1);
-  orderedIds.splice(targetIndex, 0, draggedId);
-
-  const defaultIds = new Set(scopedGroups.filter((group) => group.isDefault).map((group) => group.id));
-  const normalizedIds = [...orderedIds.filter((id) => !defaultIds.has(id)), ...orderedIds.filter((id) => defaultIds.has(id))];
-  const priorities = new Map(normalizedIds.map((id, index) => [id, normalizedIds.length - index]));
-  const updatedById = new Map(groups.map((group) => [group.id, priorities.has(group.id) ? { ...group, priority: priorities.get(group.id)! } : group]));
-  let scopedIndex = 0;
-
-  const reordered = groups.map((group) => {
-    if (!priorities.has(group.id)) return updatedById.get(group.id)!;
-    const nextId = normalizedIds[scopedIndex++];
-    return updatedById.get(nextId)!;
-  });
-
-  return ensureDefaultGroupsEnabled(reordered);
+export function validateGroupPriorities<T extends ManagedGroup>(groups: T[]): string {
+  if (groups.some((group) => !Number.isInteger(group.priority) || group.priority <= 0)) return "优先级必须为大于 0 的整数";
+  if (new Set(groups.map((group) => group.priority)).size !== groups.length) return "优先级数值不可重复，请重新设置";
+  return "";
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { applyBatchOperation, BATCH_PRICE_MAX, type BatchOperation, eligibleBatchItems, validateBatchPrice } from "./batch-operations";
-import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, reorderGroupPriority, setManagedGroupsEnabled } from "./group-management";
+import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, setManagedGroupsEnabled, sortGroupsByPriority, validateGroupPriorities } from "./group-management";
 import PidManager from "./pid-manager";
 import ReportManager from "./report-manager";
 import AbReportManager from "./ab-report-manager";
@@ -82,7 +82,6 @@ const initialGroups: Group[] = [
   { id: 306, name: "306-社区详情页默认分组-iOS", priority: 306, scene: "社区-详情页", platform: "IOS", adSlot: "3002-社区详情页广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 307, name: "307-社区其他广告位默认分组-iOS", priority: 307, scene: "社区-其他广告位", platform: "IOS", adSlot: "3003-社区其他广告位", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 303, name: "303-搜索默认分组-iOS", priority: 303, scene: "搜索", platform: "IOS", adSlot: "4001-搜索广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
-  { id: 304, name: "304-icon默认分组-iOS", priority: 304, scene: "icon", platform: "IOS", adSlot: "5001-icon广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 401, name: "401-开屏默认分组-Android", priority: 401, scene: "开屏", platform: "Android", adSlot: "1100-美柚-开屏广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 402, name: "402-Android-北京用户", priority: 402, scene: "开屏", platform: "Android", adSlot: "1100-美柚-开屏广告", rules: [{ dimension: "城市", operator: "包含", value: "北京" }], enabled: false, ab: false, traffic: 100, experiment: "A对照组" },
   { id: 403, name: "403-插屏默认分组-Android", priority: 403, scene: "插屏", platform: "Android", adSlot: "2101-美柚-插屏广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
@@ -90,11 +89,12 @@ const initialGroups: Group[] = [
   { id: 407, name: "407-社区详情页默认分组-Android", priority: 407, scene: "社区-详情页", platform: "Android", adSlot: "3102-社区详情页广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 408, name: "408-社区其他广告位默认分组-Android", priority: 408, scene: "社区-其他广告位", platform: "Android", adSlot: "3103-社区其他广告位", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
   { id: 405, name: "405-搜索默认分组-Android", priority: 405, scene: "搜索", platform: "Android", adSlot: "4101-搜索广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
-  { id: 406, name: "406-icon默认分组-Android", priority: 406, scene: "icon", platform: "Android", adSlot: "5101-icon广告", rules: [], enabled: true, ab: false, traffic: 100, experiment: "A对照组", isDefault: true },
 ];
 
 function normalizeGroups(current: Group[]): Group[] {
-  const migrated = current.map((group) => group.scene === "信息流" ? { ...group, scene: "社区-信息流" } : group);
+  const migrated = current
+    .filter((group) => group.scene !== "icon")
+    .map((group) => group.scene === "信息流" ? { ...group, scene: "社区-信息流" } : group);
   const missingDefaults = initialGroups.filter((seed) => seed.isDefault && !migrated.some((group) => group.isDefault && group.scene === seed.scene && group.platform === seed.platform));
   return ensureDefaultGroupsEnabled([...migrated, ...missingDefaults]);
 }
@@ -159,10 +159,11 @@ export default function Home() {
   const [platform, setPlatform] = useState("IOS");
   const [showEffectiveOnly, setShowEffectiveOnly] = useState(true);
   const [groupListExpanded, setGroupListExpanded] = useState(false);
+  const [groupManagerPage, setGroupManagerPage] = useState(false);
   const [selectedId, setSelectedId] = useState(initialSelectedGroupId);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [modal, setModal] = useState<"group" | "groupManager" | "deleteGroup" | "disableGroup" | "dsp" | "batch" | null>(null);
+  const [modal, setModal] = useState<"group" | "deleteGroup" | "disableGroup" | "dsp" | "batch" | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
   const [disableConfirmGroupId, setDisableConfirmGroupId] = useState<number | null>(null);
@@ -172,9 +173,7 @@ export default function Home() {
   const [selectedDspIds, setSelectedDspIds] = useState<number[]>([]);
   const [managedGroupDraft, setManagedGroupDraft] = useState<Group[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
-  const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null);
-  const pointerDraggedGroupId = useRef<number | null>(null);
-  const lastPointerTargetId = useRef<number | null>(null);
+  const [groupManagerError, setGroupManagerError] = useState("");
   const [batchOperation, setBatchOperation] = useState<BatchOperation>("disable");
   const [batchPrice, setBatchPrice] = useState("");
   const [batchError, setBatchError] = useState("");
@@ -215,7 +214,7 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const sceneGroups = useMemo(() => groups.filter((group) => group.scene === scene && group.platform === platform).sort((a, b) => b.priority - a.priority), [groups, scene, platform]);
+  const sceneGroups = useMemo(() => sortGroupsByPriority(groups.filter((group) => group.scene === scene && group.platform === platform)), [groups, scene, platform]);
   const visibleGroups = useMemo(() => showEffectiveOnly ? sceneGroups.filter((group) => group.enabled || group.isDefault) : sceneGroups, [sceneGroups, showEffectiveOnly]);
   const selected = visibleGroups.find((group) => group.id === selectedId) ?? visibleGroups[0];
   const selectedExperiment = selected ? experiments.find((experiment) => experiment.groupId === selected.id) : undefined;
@@ -258,7 +257,7 @@ export default function Home() {
   const enabledSelectedCount = selectedDsps.filter((dsp) => dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const disabledSelectedCount = selectedDsps.filter((dsp) => !dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const allVisibleSelected = visibleDsps.length > 0 && visibleDsps.every((dsp) => selectedDspIds.includes(dsp.id));
-  const managerGroups = managedGroupDraft;
+  const managerGroups = useMemo(() => sortGroupsByPriority(managedGroupDraft), [managedGroupDraft]);
   const manageableGroups = managerGroups.filter((group) => !group.isDefault);
   const selectedManageGroups = manageableGroups.filter((group) => selectedGroupIds.includes(group.id));
   const allManageableSelected = manageableGroups.length > 0 && manageableGroups.every((group) => selectedGroupIds.includes(group.id));
@@ -305,8 +304,8 @@ export default function Home() {
   const openGroupManager = () => {
     setManagedGroupDraft(sceneGroups.map((group) => ({ ...group, rules: group.rules.map((rule) => ({ ...rule })) })));
     setSelectedGroupIds([]);
-    setDraggedGroupId(null);
-    setModal("groupManager");
+    setGroupManagerError("");
+    setGroupManagerPage(true);
   };
 
   const toggleAllManageableGroups = () => {
@@ -331,54 +330,21 @@ export default function Home() {
     setManagedGroupDraft((current) => setManagedGroupsEnabled(current, ids, enabled));
   };
 
-  const dropManagedGroup = (targetId: number, sourceId: number | null = draggedGroupId) => {
-    if (sourceId === null) return;
-    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), sourceId, targetId));
-    setDraggedGroupId(null);
-  };
-
-  const startPointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>, groupId: number) => {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointerDraggedGroupId.current = groupId;
-    lastPointerTargetId.current = groupId;
-    setDraggedGroupId(groupId);
-  };
-
-  const movePointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const sourceId = pointerDraggedGroupId.current;
-    if (sourceId === null) return;
-
-    const targetRow = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-managed-group-id]");
-    const targetId = Number(targetRow?.dataset.managedGroupId);
-    if (!Number.isFinite(targetId) || targetId === lastPointerTargetId.current) return;
-
-    lastPointerTargetId.current = targetId;
-    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), sourceId, targetId));
-  };
-
-  const endPointerGroupDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    pointerDraggedGroupId.current = null;
-    lastPointerTargetId.current = null;
-    setDraggedGroupId(null);
-  };
-
-  const moveManagedGroup = (groupId: number, direction: -1 | 1) => {
-    const index = managerGroups.findIndex((group) => group.id === groupId);
-    const target = managerGroups[index + direction];
-    if (!target || managerGroups[index]?.isDefault) return;
-    setManagedGroupDraft((current) => reorderGroupPriority(current, current.map((group) => group.id), groupId, target.id));
+  const changeManagedGroupPriority = (groupId: number, priority: number) => {
+    setGroupManagerError("");
+    setManagedGroupDraft((current) => current.map((group) => group.id === groupId ? { ...group, priority } : group));
   };
 
   const closeGroupManager = () => {
-    setModal(null);
+    setGroupManagerPage(false);
     setManagedGroupDraft([]);
     setSelectedGroupIds([]);
-    setDraggedGroupId(null);
+    setGroupManagerError("");
   };
 
   const confirmGroupManager = () => {
+    const priorityError = validateGroupPriorities(managerGroups);
+    if (priorityError) return setGroupManagerError(priorityError);
     const draftById = new Map(managerGroups.map((group) => [group.id, group]));
     setGroups((current) => normalizeGroups(current.map((group) => draftById.get(group.id) ?? group)));
     closeGroupManager();
@@ -528,7 +494,7 @@ export default function Home() {
         <div className="profile"><span>张佳琪</span><button type="button" onClick={() => notify("演示环境不会退出登录")}>退出</button></div>
         {sidebarItems.map((item) => <button type="button" className="side-row" key={item}>{item}<span>‹</span></button>)}
         <button type="button" className="side-row active">ADX流量工具<span>⌄</span></button>
-        <button type="button" className={`sub-row ${currentView === "groups" ? "active" : ""}`} onClick={() => { setCurrentView("groups"); setExperimentPage(null); setModal(null); }}>›&nbsp; 流量分组管理</button>
+        <button type="button" className={`sub-row ${currentView === "groups" ? "active" : ""}`} onClick={() => { setCurrentView("groups"); setExperimentPage(null); setGroupManagerPage(false); setModal(null); }}>›&nbsp; 流量分组管理</button>
         <button type="button" className={`sub-row ${currentView === "pids" ? "active" : ""}`} onClick={() => { setCurrentView("pids"); setExperimentPage(null); setModal(null); }}>›&nbsp; PID 管理</button>
         <button type="button" className={`sub-row ${currentView === "report" ? "active" : ""}`} onClick={() => { setCurrentView("report"); setExperimentPage(null); setModal(null); }}>›&nbsp; 综合报表</button>
         <button type="button" className={`sub-row ${currentView === "abReport" ? "active" : ""}`} onClick={() => { setCurrentView("abReport"); setExperimentPage(null); setModal(null); }}>›&nbsp; A/B测试报表</button>
@@ -539,10 +505,31 @@ export default function Home() {
         {currentView === "groups" && experimentPage && selected ? <GroupExperimentManager group={selected} dsps={groupDsps} experiment={experimentPage === "detail" ? selectedExperiment : undefined} onBack={() => setExperimentPage(null)} onNotify={notify} onChange={(nextExperiment) => {
           setExperiments((current) => current.some((item) => item.groupId === nextExperiment.groupId) ? current.map((item) => item.groupId === nextExperiment.groupId ? nextExperiment : item) : [...current, nextExperiment]);
           setGroups((current) => current.map((group) => group.id === nextExperiment.groupId ? { ...group, ab: true, traffic: nextExperiment.bTraffic, experiment: nextExperiment.aTraffic === 100 ? "A对照组" : "B测试组" } : group));
-        }} /> : currentView === "groups" ? <section className="panel">
+        }} /> : currentView === "groups" && groupManagerPage ? <section className="panel group-manager-page">
+          <div className="group-manager-page-heading"><div><button type="button" className="back-link" onClick={closeGroupManager}>‹ 返回流量分组管理</button><h1>分组管理</h1></div><div className="group-manager-page-actions"><button type="button" className="secondary" onClick={closeGroupManager}>取消</button><button type="button" className="primary" onClick={confirmGroupManager}>确认</button></div></div>
+          <div className="group-manager-body">
+            <div className="group-manager-meta"><strong>当前场景：{scene}</strong><span>/</span><strong>平台：{platform === "IOS" ? "iOS" : platform}</strong></div>
+            <div className="group-manager-tip"><span>↑</span><div><strong>输入数值设置分组优先级，数值越大优先级越高</strong><small>列表会按优先级从高到低排列，修改后点击“确认”保存。</small></div></div>
+            <div className="group-manager-toolbar">
+              <label><input type="checkbox" checked={allManageableSelected} onChange={toggleAllManageableGroups} />全选非默认分组</label>
+              <span>已选择 {selectedManageGroups.length} 个分组</span>
+              <div><button type="button" className="secondary" disabled={!selectedDisabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => !group.enabled).map((group) => group.id), true)}>批量启用{selectedDisabledGroups ? `（${selectedDisabledGroups}）` : ""}</button><button type="button" className="secondary danger" disabled={!selectedEnabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => group.enabled).map((group) => group.id), false)}>批量停用{selectedEnabledGroups ? `（${selectedEnabledGroups}）` : ""}</button></div>
+            </div>
+            {groupManagerError && <div className="group-manager-error" role="alert">{groupManagerError}</div>}
+            <div className="group-manager-list" aria-label="分组优先级列表">
+              {managerGroups.map((group) => <div className={`managed-group-row ${group.isDefault ? "default" : ""}`} key={group.id}>
+                <input type="checkbox" aria-label={`选择分组 ${group.name}`} disabled={group.isDefault} checked={!group.isDefault && selectedGroupIds.includes(group.id)} onChange={() => toggleManagedGroupSelection(group.id)} />
+                <label className="priority-input"><span>优先级</span><input type="number" min="1" step="1" aria-label={`${group.name}优先级`} value={group.priority} onChange={(event) => changeManagedGroupPriority(group.id, Number(event.target.value))} /></label>
+                <div className="managed-group-info"><strong>{group.name}</strong><span>{group.isDefault ? "默认分组 · 始终启用" : group.rules.length ? `${group.rules.length} 条分组规则` : "无附加分组规则"}</span></div>
+                <span className={`strategy-state ${group.enabled || group.isDefault ? "effective" : "inactive"}`}>{group.enabled || group.isDefault ? "策略生效" : "策略失效"}</span>
+                <Toggle checked={group.isDefault ? true : group.enabled} disabled={Boolean(group.isDefault)} label={group.isDefault ? `${group.name}默认启用` : `${group.name}状态`} onChange={() => changeManagedGroupStatus([group.id], !group.enabled)} />
+              </div>)}
+            </div>
+          </div>
+        </section> : currentView === "groups" ? <section className="panel">
           <h1>流量分组管理</h1>
           <div className="filters">
-            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => changeScene(event.target.value)}><option>开屏</option><option>插屏</option><option>社区-信息流</option><option>社区-详情页</option><option>社区-其他广告位</option><option>搜索</option><option>icon</option></select></label>
+            <label>广告场景：<select aria-label="广告场景" value={scene} onChange={(event) => changeScene(event.target.value)}><option>开屏</option><option>插屏</option><option>社区-信息流</option><option>社区-详情页</option><option>社区-其他广告位</option><option>搜索</option></select></label>
             <label>平台：<select aria-label="平台" value={platform} onChange={(event) => changePlatform(event.target.value)}><option>IOS</option><option>Android</option></select></label>
           </div>
           <div className="group-toolbar"><div><button type="button" className="primary" onClick={() => openGroupModal()}>＋ 添加分组</button><button type="button" className="secondary" onClick={openGroupManager}>分组管理</button></div><button type="button" className={`effective-filter ${showEffectiveOnly ? "active" : ""}`} aria-pressed={showEffectiveOnly} onClick={toggleEffectiveFilter}><span>{showEffectiveOnly ? "✓" : ""}</span>仅展示生效中</button></div>
@@ -551,7 +538,7 @@ export default function Home() {
             <div id="group-list" className={`groups ${groupListExpanded ? "expanded" : "collapsed"}`} aria-label="分组列表">
               {visibleGroups.length ? visibleGroups.map((group) => (
                 <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
-                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
+                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span><small className="group-priority-tag">优先级 {group.priority}</small>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
                   <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setGroupListExpanded(true); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
                   {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button>{!group.enabled && !group.isDefault && <button type="button" className="danger" onClick={() => openDeleteGroupConfirmation(group)}>删除分组</button>}</div>}
                 </div>
@@ -564,7 +551,7 @@ export default function Home() {
             <div className="group-detail">
               <div><strong>广告位：</strong><span className="pink-tag">{selected.adSlot}</span></div>
               <div><strong>分组规则：</strong>{selected.rules.length ? selected.rules.map((rule, index) => <span className="rule-tag" key={`${rule.dimension}-${index}`}>{rule.dimension}({rule.operator}): {rule.value}</span>) : <span className="muted">默认流量，无附加规则</span>}</div>
-              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <button type="button" className="primary push-right" onClick={() => setExperimentPage(selectedExperiment ? "detail" : "create")}>{selectedExperiment ? "查看A/B测试数据" : "创建A/B实验"}</button> : <span className="experiment-unavailable push-right">启用分组后可创建实验</span>}</div>
+              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <button type="button" className="primary push-right" onClick={() => setExperimentPage(selectedExperiment ? "detail" : "create")}>{selectedExperiment ? "查看实验" : "新增实验"}</button> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
             </div>
 
             <div className="pid-toolbar">
@@ -589,30 +576,6 @@ export default function Home() {
         </section> : currentView === "pids" ? <PidManager groups={groups} onOpenGroup={openBoundGroup} onNotify={notify} /> : currentView === "report" ? <ReportManager groups={groups} onNotify={notify} /> : <AbReportManager onNotify={notify} />}
       </main>
 
-      {modal === "groupManager" && <Modal title="分组管理" onClose={closeGroupManager} wide>
-        <div className="group-manager-body">
-          <div className="group-manager-meta"><strong>当前场景：{scene}</strong><span>/</span><strong>平台：{platform === "IOS" ? "iOS" : platform}</strong></div>
-          <div className="group-manager-tip"><span>↕</span><div><strong>拖拽调整分组优先级，数字越小优先级越高</strong><small>调整后点击“确认”保存；默认分组固定置底并始终启用。</small></div></div>
-          <div className="group-manager-toolbar">
-            <label><input type="checkbox" checked={allManageableSelected} onChange={toggleAllManageableGroups} />全选非默认分组</label>
-            <span>已选择 {selectedManageGroups.length} 个分组</span>
-            <div><button type="button" className="secondary" disabled={!selectedDisabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => !group.enabled).map((group) => group.id), true)}>批量启用{selectedDisabledGroups ? `（${selectedDisabledGroups}）` : ""}</button><button type="button" className="secondary danger" disabled={!selectedEnabledGroups} onClick={() => changeManagedGroupStatus(selectedManageGroups.filter((group) => group.enabled).map((group) => group.id), false)}>批量停用{selectedEnabledGroups ? `（${selectedEnabledGroups}）` : ""}</button></div>
-          </div>
-          <div className="group-manager-list" aria-label="可排序分组列表">
-            {managerGroups.map((group, index) => <div className={`managed-group-row ${group.isDefault ? "default" : ""} ${draggedGroupId === group.id ? "dragging" : ""}`} data-managed-group-id={group.id} key={group.id} draggable={!group.isDefault} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(group.id)); setDraggedGroupId(group.id); }} onDragEnd={() => setDraggedGroupId(null)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); const transferredId = Number(event.dataTransfer.getData("text/plain")); dropManagedGroup(group.id, Number.isFinite(transferredId) && transferredId > 0 ? transferredId : draggedGroupId); }}>
-              <button type="button" className="drag-handle" aria-label={`拖动${group.name}调整优先级`} disabled={group.isDefault} onPointerDown={(event) => startPointerGroupDrag(event, group.id)} onPointerMove={movePointerGroupDrag} onPointerUp={endPointerGroupDrag} onPointerCancel={endPointerGroupDrag}>⠿</button>
-              <input type="checkbox" aria-label={`选择分组 ${group.name}`} disabled={group.isDefault} checked={!group.isDefault && selectedGroupIds.includes(group.id)} onChange={() => toggleManagedGroupSelection(group.id)} />
-              <strong className="priority-badge">P{index + 1}</strong>
-              <div className="managed-group-info"><strong>{group.name}</strong><span>{group.isDefault ? "默认分组 · 固定置底" : group.rules.length ? `${group.rules.length} 条分组规则` : "无附加分组规则"}</span></div>
-              <span className={`strategy-state ${group.enabled || group.isDefault ? "effective" : "inactive"}`}>{group.enabled || group.isDefault ? "策略生效" : "策略失效"}</span>
-              <Toggle checked={group.isDefault ? true : group.enabled} disabled={Boolean(group.isDefault)} label={group.isDefault ? `${group.name}默认启用` : `${group.name}状态`} onChange={() => changeManagedGroupStatus([group.id], !group.enabled)} />
-              <div className="move-actions"><button type="button" aria-label={`${group.name}上移`} disabled={group.isDefault || index === 0} onClick={() => moveManagedGroup(group.id, -1)}>↑</button><button type="button" aria-label={`${group.name}下移`} disabled={group.isDefault || index >= manageableGroups.length - 1} onClick={() => moveManagedGroup(group.id, 1)}>↓</button></div>
-            </div>)}
-          </div>
-        </div>
-        <div className="modal-actions"><button type="button" className="secondary" onClick={closeGroupManager}>取消</button><button type="button" className="primary" onClick={confirmGroupManager}>确认</button></div>
-      </Modal>}
-
       {modal === "deleteGroup" && <Modal title="删除分组" onClose={closeDeleteGroupConfirmation}>
         <div className="delete-confirm-body">
           <span className="delete-warning" aria-hidden="true">!</span>
@@ -633,7 +596,7 @@ export default function Home() {
         <form onSubmit={saveGroup}>
           <div className="modal-body">
             <Field label="分组名称" required><input maxLength={20} placeholder="请输入分组名称" value={groupDraft.name} onChange={(event) => setGroupDraft({ ...groupDraft, name: event.target.value })} /><small className="counter">{groupDraft.name.length}/20</small></Field>
-            <Field label="优先级" hint="请在“分组管理”中拖拽调整"><input disabled value={editingGroupId ? `P${Math.max(1, sceneGroups.findIndex((group) => group.id === editingGroupId) + 1)}` : "保存后默认置顶"} /></Field>
+            <Field label="优先级" hint="可在“分组管理”页面输入数值调整，数值越大优先级越高"><input disabled value={groupDraft.priority} /></Field>
             <Field label="广告场景"><input disabled value={scene} /></Field>
             <Field label="平台"><input disabled value={platform} /></Field>
             <Field label="广告位" required><select value={groupDraft.adSlot} onChange={(event) => setGroupDraft({ ...groupDraft, adSlot: event.target.value })}><option>1000-美柚-开屏广告</option><option>1001-美柚-开屏广告-新</option><option>{scene}-默认广告位</option></select></Field>
