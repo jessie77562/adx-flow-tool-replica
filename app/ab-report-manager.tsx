@@ -96,8 +96,8 @@ const ongoingExperiments = getOngoingAbExperiments(AB_EXPERIMENTS);
 export default function AbReportManager({ onNotify }: { onNotify: (message: string) => void }) {
   const initialExperiment = ongoingExperiments[0];
   const [selectedId, setSelectedId] = useState(() => resolveAbExperimentId(ongoingExperiments, ""));
-  const [experimentQuery, setExperimentQuery] = useState(initialExperiment?.optionLabel ?? "");
-  const [experimentPickerOpen, setExperimentPickerOpen] = useState(false);
+  const [experimentQuery, setExperimentQuery] = useState("");
+  const [detailExperimentId, setDetailExperimentId] = useState<string | null>(null);
   const [metric, setMetric] = useState<AbMetricKey>("revenuePerThousandUsers");
   const [timeDimension, setTimeDimension] = useState<"day" | "hour">("day");
   const [dateRange, setDateRange] = useState(() => initialExperiment ? defaultAbDateRange(initialExperiment) : { startDate: "", endDate: "" });
@@ -109,9 +109,8 @@ export default function AbReportManager({ onNotify }: { onNotify: (message: stri
   const [showGroupComparison, setShowGroupComparison] = useState(false);
   const [definitionLabel, setDefinitionLabel] = useState<string | null>(null);
   const selectedExperiment = AB_EXPERIMENTS.find((experiment) => String(experiment.id) === selectedId) ?? initialExperiment;
-  const overviewExperiments = sortAbExperimentsByCreatedAt(showAllExperiments ? AB_EXPERIMENTS : ongoingExperiments);
-  const filteredExperiments = filterAbExperimentsByKeyword(ongoingExperiments, experimentQuery);
-  const pickerExperiments = experimentQuery === selectedExperiment?.optionLabel ? ongoingExperiments : filteredExperiments;
+  const overviewSource = showAllExperiments ? AB_EXPERIMENTS : ongoingExperiments;
+  const overviewExperiments = sortAbExperimentsByCreatedAt(filterAbExperimentsByKeyword(overviewSource, experimentQuery));
   const selectedMetric = chartMetrics.find((option) => option.key === metric) ?? chartMetrics[0];
   const activeDefinition = metricDefinitions.find((item) => item.label === definitionLabel) ?? null;
   const bounds = selectedExperiment ? experimentDateBounds(selectedExperiment) : { startDate: "", endDate: "" };
@@ -124,8 +123,6 @@ export default function AbReportManager({ onNotify }: { onNotify: (message: stri
   const changeExperiment = (nextId: string) => {
     const experiment = AB_EXPERIMENTS.find((item) => String(item.id) === nextId);
     setSelectedId(nextId);
-    setExperimentQuery(experiment?.optionLabel ?? "");
-    setExperimentPickerOpen(false);
     setMetric("revenuePerThousandUsers");
     const nextRange = experiment ? defaultAbDateRange(experiment) : { startDate: "", endDate: "" };
     setDateRange(nextRange);
@@ -160,7 +157,13 @@ export default function AbReportManager({ onNotify }: { onNotify: (message: stri
 
   const openExperimentDetail = (experimentId: number) => {
     changeExperiment(String(experimentId));
-    requestAnimationFrame(() => document.getElementById("ab-experiment-detail")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setDetailExperimentId(String(experimentId));
+  };
+
+  const returnToExperimentList = () => {
+    setDetailExperimentId(null);
+    setShowTrafficLog(false);
+    setDefinitionLabel(null);
   };
 
   const exportComparison = () => {
@@ -203,16 +206,18 @@ export default function AbReportManager({ onNotify }: { onNotify: (message: stri
     return <><span>{formatMetric(bValue, type)}</span>{showGroupComparison && <small className={`ab-inline-lift ${liftClass}`}>{formatLift(lift)}</small>}</>;
   };
 
+  if (!detailExperimentId) return <section className="panel ab-report-panel">
+    <div className="ab-list-page-heading"><div><h1>A/B测试报表</h1><p>查看全部实验，并进入具体实验的数据详情。</p></div><label className="ab-show-all-toggle"><input type="checkbox" checked={showAllExperiments} onChange={(event) => setShowAllExperiments(event.target.checked)} /><span>展示全部实验</span></label></div>
+    <section className="ab-report-card ab-experiment-overview-card"><header className="ab-report-section-heading"><div className="ab-section-title"><h2>A/B 测试列表</h2><span>按实验创建时间倒序排列，共 {overviewExperiments.length} 个实验</span></div><input className="ab-list-search" aria-label="检索A/B测试" placeholder="输入实验名称或分组名称检索" value={experimentQuery} onChange={(event) => setExperimentQuery(event.target.value)} /></header><div className="table-wrap ab-experiment-overview-table"><table><thead><tr><th>实验 ID</th><th>实验名称</th><th>实验开启时间</th><th>实验结束时间</th><th>实验状态</th><th>操作</th></tr></thead><tbody>{overviewExperiments.map((experiment) => <tr key={experiment.id}><td>{experiment.id}</td><td><strong>{experiment.testName}</strong><small>{experiment.optionLabel}</small></td><td>{experiment.startAt.replace("T", " ")}</td><td>{experiment.endAt.replace("T", " ")}</td><td><em className={`ab-list-status ${experiment.status}`}>{experiment.status === "ongoing" ? "进行中" : "已结束"}</em></td><td><button type="button" className="link-button" onClick={() => openExperimentDetail(experiment.id)}>查看详细实验数据</button></td></tr>)}{!overviewExperiments.length && <tr><td colSpan={6}><div className="report-empty">{experimentQuery ? "未找到匹配的 A/B 测试" : "暂无 A/B 测试"}</div></td></tr>}</tbody></table></div></section>
+  </section>;
+
   if (!selectedExperiment) return <section className="panel ab-report-panel"><h1>A/B测试报表</h1><div className="ab-report-empty"><strong>暂无进行中的 A/B 测试</strong><span>实验开启后，将自动出现在实验选择器中。</span></div></section>;
 
   return <section className="panel ab-report-panel">
-    <h1>A/B测试报表</h1>
-    <div className="ab-report-overview">
-      <div className="ab-report-filter"><label><span><b>*</b>进行中 A/B</span><div className="ab-experiment-search" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setExperimentPickerOpen(false); setExperimentQuery(selectedExperiment.optionLabel); } }}><input type="text" role="combobox" aria-label="进行中 A/B 实验" aria-autocomplete="list" aria-expanded={experimentPickerOpen} aria-controls="ab-experiment-options" placeholder="输入分组名称检索" value={experimentQuery} onFocus={(event) => { setExperimentPickerOpen(true); event.currentTarget.select(); }} onChange={(event) => { setExperimentQuery(event.target.value); setExperimentPickerOpen(true); }} onKeyDown={(event) => { if (event.key === "Escape") { setExperimentPickerOpen(false); setExperimentQuery(selectedExperiment.optionLabel); } else if (event.key === "Enter" && pickerExperiments[0]) { event.preventDefault(); changeExperiment(String(pickerExperiments[0].id)); } }} /><button type="button" aria-label="展开进行中A/B分组" onClick={() => setExperimentPickerOpen((open) => !open)}>⌄</button>{experimentPickerOpen && <div id="ab-experiment-options" className="ab-experiment-options" role="listbox">{pickerExperiments.map((experiment) => <button type="button" role="option" aria-selected={String(experiment.id) === selectedId} className={String(experiment.id) === selectedId ? "active" : ""} key={experiment.id} onClick={() => changeExperiment(String(experiment.id))}><strong>{experiment.optionLabel}</strong><small>{experiment.testName}</small></button>)}{!pickerExperiments.length && <div className="ab-experiment-no-result">未找到匹配的进行中分组</div>}</div>}</div></label></div>
+    <div className="ab-detail-page-heading"><button type="button" className="back-link" onClick={returnToExperimentList}>‹ 返回A/B测试列表</button><div><h1>{selectedExperiment.testName}</h1><span>{selectedExperiment.optionLabel}</span></div></div>
+    <div className="ab-report-overview ab-detail-overview">
       <div className="ab-experiment-info"><div><span>测试名称</span><strong>{selectedExperiment.testName}</strong></div><div><span>生效时间</span><strong>{selectedExperiment.startAt.replace("T", " ")} ~ {selectedExperiment.endAt.replace("T", " ")}</strong></div><div><span>状态</span><em className={selectedExperiment.status}>{selectedExperiment.status === "ongoing" ? "进行中" : "已结束"}</em></div><button type="button" className="secondary ab-traffic-log-entry" onClick={() => setShowTrafficLog(true)}>流量配置日志</button></div>
     </div>
-
-    <section className="ab-report-card ab-experiment-overview-card"><header className="ab-report-section-heading"><div className="ab-section-title"><h2>A/B 测试列表概览</h2><span>按实验创建时间倒序排列，共 {overviewExperiments.length} 个实验</span></div><label className="ab-show-all-toggle"><input type="checkbox" checked={showAllExperiments} onChange={(event) => setShowAllExperiments(event.target.checked)} /><span>展示全部实验</span></label></header><div className="table-wrap ab-experiment-overview-table"><table><thead><tr><th>实验 ID</th><th>实验名称</th><th>实验开启时间</th><th>实验结束时间</th><th>实验状态</th><th>操作</th></tr></thead><tbody>{overviewExperiments.map((experiment) => <tr key={experiment.id} className={experiment.id === selectedExperiment.id ? "selected" : ""}><td>{experiment.id}</td><td><strong>{experiment.testName}</strong><small>{experiment.optionLabel}</small></td><td>{experiment.startAt.replace("T", " ")}</td><td>{experiment.endAt.replace("T", " ")}</td><td><em className={`ab-list-status ${experiment.status}`}>{experiment.status === "ongoing" ? "进行中" : "已结束"}</em></td><td><button type="button" className="link-button" onClick={() => openExperimentDetail(experiment.id)}>查看详细实验数据</button></td></tr>)}{!overviewExperiments.length && <tr><td colSpan={6}><div className="report-empty">暂无 A/B 测试</div></td></tr>}</tbody></table></div></section>
 
     <section id="ab-experiment-detail" className="ab-report-card"><header className="ab-report-section-heading"><div className="ab-section-title"><h2>A/B 测试数据对比表</h2><span>数据统计生效周期：<strong>{selectedExperiment.startAt.replace("T", " ")} ~ {selectedExperiment.endAt.replace("T", " ")}</strong></span></div><button type="button" className="secondary" onClick={exportComparison}>导出</button></header><div className="table-wrap ab-comparison-table"><table><thead><tr><th>组别</th>{comparisonMetrics.map((item) => <th key={item.key}><span className="report-metric-heading">{item.label}<button type="button" className="metric-help-button" aria-label={`查看${item.label}指标释义`} onClick={() => setDefinitionLabel(item.label)}>?</button></span></th>)}</tr></thead><tbody>{summaryA && <tr><td><strong>A 对照组</strong></td>{comparisonMetrics.map((item) => <td key={item.key}>{formatMetric(summaryA[item.key], item.type)}</td>)}</tr>}{summaryB && <tr><td><strong>B 测试组</strong></td>{comparisonMetrics.map((item) => <td key={item.key}>{formatMetric(summaryB[item.key], item.type)}</td>)}</tr>}{summaryA && summaryB && <tr className="ab-lift-row"><td><strong>对比涨幅</strong></td>{comparisonMetrics.map((item) => { const lift = metricLift(summaryA[item.key], summaryB[item.key]); return <td key={item.key} className={lift === null || Math.abs(lift) < 0.00005 ? "flat" : lift > 0 ? "positive" : "negative"}>{formatLift(lift)}</td>; })}</tr>}</tbody></table></div></section>
 
