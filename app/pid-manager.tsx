@@ -28,9 +28,9 @@ type PidManagerProps = {
 };
 
 const emptyFilters = (): PidFilters => ({ scene: "", platform: "", adSlot: "", pid: "", dspSources: [], groupIds: [], showAll: false });
-const emptyDraft = (): PidDraft => ({ dspSource: "", scene: "", platform: "", adSlot: "", pid: "", appVersion: "", maxAppVersion: "", size: "全尺寸", customSize: "", floor: 0.3, enabled: true });
+const emptyDraft = (): PidDraft => ({ dspSource: "", scene: "", platform: "", adSlot: "", pid: "", appVersion: "", enabled: true });
 
-export const INITIAL_PID_RECORDS: PidRecord[] = [
+const initialPidRecords: PidRecord[] = [
   { id: 1, pid: "x-1000-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], appVersion: "9.01.0" },
   { id: 2, pid: "gdt-splash-ios", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211, 210], appVersion: "9.01.0" },
   { id: 3, pid: "gdt-splash-premium", dspSource: "腾讯广告", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [211], appVersion: "10.00.0" },
@@ -45,7 +45,6 @@ export const INITIAL_PID_RECORDS: PidRecord[] = [
   { id: 12, pid: "ks-search-ios", dspSource: "快手", enabled: true, platform: "IOS", scene: "搜索", adSlot: "4001-美柚-搜索广告", groupIds: [303], appVersion: "9.06.0" },
   { id: 13, pid: "admob-search-android", dspSource: "AdMob", enabled: true, platform: "Android", scene: "搜索", adSlot: "4101-美柚-搜索广告", groupIds: [405], appVersion: "9.06.0" },
   { id: 14, pid: "applovin-icon-ios", dspSource: "AppLovin", enabled: true, platform: "IOS", scene: "icon", adSlot: "5001-icon广告", groupIds: [], appVersion: "9.07.0" },
-  { id: 15, pid: "admob-splash-ios", dspSource: "AdMob", enabled: true, platform: "IOS", scene: "开屏", adSlot: "1000-美柚-开屏广告", groupIds: [], appVersion: "9.08.0", maxAppVersion: "", size: "全尺寸", customSize: "", floor: 0.6 },
 ];
 
 function PidModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -63,7 +62,7 @@ function MultiSelectFilter({ label, values, options, onToggle, onClear }: { labe
 }
 
 export default function PidManager({ groups, onOpenGroup, onNotify }: PidManagerProps) {
-  const [records, setRecords] = useState<PidRecord[]>(() => normalizePidRecords(INITIAL_PID_RECORDS));
+  const [records, setRecords] = useState<PidRecord[]>(initialPidRecords);
   const [filters, setFilters] = useState<PidFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<PidFilters>(emptyFilters);
   const [page, setPage] = useState(1);
@@ -127,7 +126,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
 
   const openEdit = (record: PidRecord) => {
     setEditingId(record.id);
-    setDraft({ dspSource: record.dspSource, scene: record.scene, platform: record.platform, adSlot: record.adSlot, pid: record.pid, appVersion: record.appVersion, maxAppVersion: record.maxAppVersion ?? "", size: record.size ?? "全尺寸", customSize: record.customSize ?? "", floor: record.floor ?? 0.3, enabled: record.enabled });
+    setDraft({ dspSource: record.dspSource, scene: record.scene, platform: record.platform, adSlot: record.adSlot, pid: record.pid, appVersion: record.appVersion, enabled: record.enabled });
     setErrors({});
     setShowForm(true);
   };
@@ -145,10 +144,10 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
     if (Object.keys(nextErrors).length) return;
 
     if (editingId === null) {
-      setRecords((current) => [{ id: Date.now(), ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim(), maxAppVersion: draft.maxAppVersion.trim(), customSize: draft.customSize.trim(), groupIds: [] }, ...current]);
+      setRecords((current) => [{ id: Date.now(), ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim(), groupIds: [] }, ...current]);
       onNotify("新增成功");
     } else {
-      setRecords((current) => current.map((record) => record.id === editingId ? { ...record, ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim(), maxAppVersion: draft.maxAppVersion.trim(), customSize: draft.customSize.trim() } : record));
+      setRecords((current) => current.map((record) => record.id === editingId ? { ...record, ...draft, platform: draft.platform as PidRecord["platform"], pid: draft.pid.trim(), appVersion: draft.appVersion.trim() } : record));
       onNotify("保存成功");
     }
     setAppliedFilters({ ...filters });
@@ -194,9 +193,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
       <PidFormField label="平台" error={errors.platform}><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value as PidDraft["platform"], adSlot: "" })}><option value="">请选择平台</option><option value="Android">安卓</option><option value="IOS">iOS</option></select></PidFormField>
       <PidFormField label="广告位" error={errors.adSlot}><select value={draft.adSlot} onChange={(event) => setDraft({ ...draft, adSlot: event.target.value })}><option value="">请选择广告位</option>{formSlots.map((slot) => <option key={`${slot.platform}-${slot.value}`} value={slot.value}>{slot.value}</option>)}</select></PidFormField>
       <PidFormField label="PID" error={errors.pid}><input value={draft.pid} placeholder="请输入 PID" maxLength={64} onChange={(event) => setDraft({ ...draft, pid: event.target.value })} /></PidFormField>
-      <PidFormField label="尺寸" error={errors.customSize}><div className="pid-size-control"><label><input type="radio" checked={draft.size === "全尺寸"} onChange={() => setDraft({ ...draft, size: "全尺寸", customSize: "" })} />全尺寸</label><label><input type="radio" checked={draft.size === "自定义"} onChange={() => setDraft({ ...draft, size: "自定义" })} />自定义</label>{draft.size === "自定义" && <input value={draft.customSize} placeholder="如 1080×1920" onChange={(event) => setDraft({ ...draft, customSize: event.target.value })} />}</div></PidFormField>
-      <PidFormField label="应用版本" error={errors.appVersion ?? errors.maxAppVersion}><div className="pid-version-range"><input value={draft.appVersion} placeholder="最小版本，如 9.01.0" onChange={(event) => setDraft({ ...draft, appVersion: event.target.value })} /><span>至</span><input value={draft.maxAppVersion} placeholder="最大版本（选填）" onChange={(event) => setDraft({ ...draft, maxAppVersion: event.target.value })} /></div></PidFormField>
-      <PidFormField label="底价" error={errors.floor}><div className="pid-price-input"><span>¥</span><input type="number" min="0" step="0.01" value={draft.floor} onChange={(event) => setDraft({ ...draft, floor: Number(event.target.value) })} /></div></PidFormField>
+      <PidFormField label="应用版本" error={errors.appVersion}><input value={draft.appVersion} placeholder="如 9.01.0" onChange={(event) => setDraft({ ...draft, appVersion: event.target.value })} /></PidFormField>
       <div className="pid-form-field"><span>状态</span><div className="pid-status-control"><button type="button" role="switch" aria-checked={draft.enabled} aria-label="PID状态" className={`toggle ${draft.enabled ? "on" : ""}`} onClick={() => setDraft({ ...draft, enabled: !draft.enabled })}><span /></button><span>{draft.enabled ? "开启" : "停用"}</span></div></div>
     </div><div className="modal-actions"><button type="button" className="secondary" onClick={closeForm}>取消</button><button type="submit" className="primary">提交</button></div></form></PidModal>}
 

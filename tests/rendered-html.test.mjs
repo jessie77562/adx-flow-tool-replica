@@ -29,24 +29,23 @@ test("renders the ADX flow group management page", async () => {
   assert.match(html, /社区-信息流/);
   assert.match(html, /社区-详情页/);
   assert.match(html, /社区-其他广告位/);
-  assert.match(html, /选择PID/);
+  assert.match(html, /添加PID/);
   assert.match(html, /批量操作/);
   assert.match(html, /DSP来源/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
 test("keeps the restored interactions in the client surface", async () => {
-  const [page, pidManager, pidManagement, reportManager, abReportManager, abReport, experimentManager, experimentData] = await Promise.all([
+  const [page, pidManager, reportManager, abReportManager, abReport, experimentManager, experimentData] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/pid-manager.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/pid-management.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/report-manager.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ab-report-manager.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/ab-report.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/group-experiment-manager.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/experiment-management.ts", import.meta.url), "utf8"),
   ]);
-  const clientSurface = `${page}\n${pidManager}\n${pidManagement}\n${reportManager}\n${abReportManager}\n${abReport}\n${experimentManager}\n${experimentData}`;
+  const clientSurface = `${page}\n${pidManager}\n${reportManager}\n${abReportManager}\n${abReport}\n${experimentManager}\n${experimentData}`;
   for (const feature of [
     "saveGroup",
     "copyGroup",
@@ -88,13 +87,6 @@ test("keeps the restored interactions in the client surface", async () => {
     "展示全部 PID",
     "MultiSelectFilter label=\"DSP 来源\"",
     "PID维度筛选",
-    "选择 PID",
-    "仅展示与当前广告场景、平台、广告位匹配且已启用的 PID",
-    "请先前往 PID 管理创建或启用 PID",
-    "pidLibrary",
-    "pid-version-range",
-    "最大版本（选填）",
-    "底价必须大于 0",
     "应用版本",
     "normalizePidRecords",
     "MultiSelectFilter label=\"分组\"",

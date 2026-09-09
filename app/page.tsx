@@ -3,8 +3,7 @@
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { applyBatchOperation, BATCH_PRICE_MAX, type BatchOperation, eligibleBatchItems, validateBatchPrice } from "./batch-operations";
 import { ensureDefaultGroupsEnabled, highestEffectiveGroupId, reorderGroupPriority, setManagedGroupsEnabled } from "./group-management";
-import PidManager, { INITIAL_PID_RECORDS } from "./pid-manager";
-import { normalizePidRecords, type PidRecord } from "./pid-management";
+import PidManager from "./pid-manager";
 import ReportManager from "./report-manager";
 import AbReportManager from "./ab-report-manager";
 import GroupExperimentManager from "./group-experiment-manager";
@@ -163,7 +162,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState(initialSelectedGroupId);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [modal, setModal] = useState<"group" | "groupManager" | "deleteGroup" | "disableGroup" | "pidSelector" | "dsp" | "batch" | null>(null);
+  const [modal, setModal] = useState<"group" | "groupManager" | "deleteGroup" | "disableGroup" | "dsp" | "batch" | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
   const [disableConfirmGroupId, setDisableConfirmGroupId] = useState<number | null>(null);
@@ -183,9 +182,6 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [groupDraft, setGroupDraft] = useState({ name: "", priority: 100012, adSlot: "1000-美柚-开屏广告", rules: [] as Rule[] });
   const [dspDraft, setDspDraft] = useState({ name: "", size: "全尺寸" as "全尺寸" | "自定义", customSize: "", pids: [""], minVersion: "", maxVersion: "", floor: 0.3, enabled: true });
-  const [pidLibrary, setPidLibrary] = useState<PidRecord[]>(() => normalizePidRecords(INITIAL_PID_RECORDS));
-  const [selectedLibraryPidIds, setSelectedLibraryPidIds] = useState<number[]>([]);
-  const [pidLibraryQuery, setPidLibraryQuery] = useState("");
 
   /* eslint-disable react-hooks/set-state-in-effect -- Browser-local demo data is restored once after hydration. */
   useEffect(() => {
@@ -258,12 +254,6 @@ export default function Home() {
   const disabledDsps = groupDsps.filter((dsp) => !dsp.enabled);
   const visibleDsps = showDisabled ? [...enabledDsps, ...disabledDsps] : enabledDsps;
   const selectedDsps = groupDsps.filter((dsp) => selectedDspIds.includes(dsp.id));
-  const selectablePids = pidLibrary.filter((record) => record.enabled
-    && record.scene === selected?.scene
-    && record.platform === selected?.platform
-    && record.adSlot === selected?.adSlot
-    && !groupDsps.some((dsp) => dsp.pids.includes(record.pid))
-    && (!pidLibraryQuery.trim() || `${record.pid} ${record.dspSource}`.toLocaleLowerCase().includes(pidLibraryQuery.trim().toLocaleLowerCase())));
   const selectedPidCount = selectedDsps.reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const enabledSelectedCount = selectedDsps.filter((dsp) => dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const disabledSelectedCount = selectedDsps.filter((dsp) => !dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
@@ -469,50 +459,6 @@ export default function Home() {
     setModal("dsp");
   };
 
-  const openPidSelector = () => {
-    let records = normalizePidRecords(INITIAL_PID_RECORDS);
-    try {
-      const stored = localStorage.getItem("adx-demo-pid-manager-v1");
-      if (stored) records = normalizePidRecords(JSON.parse(stored));
-    } catch { /* keep seeded PID library */ }
-    setPidLibrary(records);
-    setSelectedLibraryPidIds([]);
-    setPidLibraryQuery("");
-    setModal("pidSelector");
-  };
-
-  const confirmPidSelection = () => {
-    if (!selected || !selectedLibraryPidIds.length) return;
-    const picked = pidLibrary.filter((record) => selectedLibraryPidIds.includes(record.id));
-    setDsps((current) => [...current, ...picked.map((record, index) => ({
-      id: Date.now() + index,
-      groupId: selected.id,
-      name: record.dspSource,
-      enabled: true,
-      floor: record.floor ?? 0.3,
-      pids: [record.pid],
-      minVersion: record.appVersion,
-      maxVersion: record.maxAppVersion ?? "",
-      size: record.size ?? "全尺寸",
-      customSize: record.customSize,
-      revenue: 0,
-      ecpm: 0,
-      requestValue: 0,
-      requests: 0,
-      returns: 0,
-      bidWins: 0,
-      impressions: 0,
-      ctr: 0,
-      cpc: 0,
-    }))]);
-    const pickedIds = new Set(picked.map((record) => record.id));
-    const updatedLibrary = pidLibrary.map((record) => pickedIds.has(record.id) && !record.groupIds.includes(selected.id) ? { ...record, groupIds: [...record.groupIds, selected.id] } : record);
-    setPidLibrary(updatedLibrary);
-    localStorage.setItem("adx-demo-pid-manager-v1", JSON.stringify(updatedLibrary));
-    setModal(null);
-    notify(`已选择并绑定 ${picked.length} 个 PID`);
-  };
-
   const saveDsp = (event: FormEvent) => {
     event.preventDefault();
     if (!dspDraft.name || !dspDraft.pids.some((pid) => pid.trim())) return notify("请填写 DSP 来源和 PID");
@@ -622,7 +568,7 @@ export default function Home() {
             </div>
 
             <div className="pid-toolbar">
-              <button type="button" className="primary" onClick={openPidSelector}>＋ 选择PID</button>
+              <button type="button" className="primary" onClick={() => openDspModal()}>＋ 添加PID</button>
               <div className="pid-toolbar-actions">
                 {selectedPidCount > 0 && <span className="selection-summary">已选择 {selectedPidCount} 个 PID</span>}
                 <button type="button" className="secondary" disabled={!selectedPidCount} onClick={openBatchModal}>批量操作</button>
@@ -697,22 +643,13 @@ export default function Home() {
         </form>
       </Modal>}
 
-      {modal === "pidSelector" && <Modal title="选择 PID" onClose={() => setModal(null)} wide>
-        <div className="pid-selector-body">
-          <div className="pid-selector-context"><span>当前分组：<strong>{selected?.name}</strong></span><span>仅展示与当前广告场景、平台、广告位匹配且已启用的 PID</span></div>
-          <input className="pid-selector-search" aria-label="检索可选PID" placeholder="输入 PID 或 DSP 来源检索" value={pidLibraryQuery} onChange={(event) => setPidLibraryQuery(event.target.value)} />
-          <div className="table-wrap pid-selector-table"><table><thead><tr><th className="selection-cell"><input type="checkbox" aria-label="选择全部可用PID" checked={selectablePids.length > 0 && selectablePids.every((record) => selectedLibraryPidIds.includes(record.id))} onChange={(event) => setSelectedLibraryPidIds(event.target.checked ? selectablePids.map((record) => record.id) : [])} /></th><th>PID</th><th>DSP 来源</th><th>应用版本</th><th>尺寸</th><th>底价</th></tr></thead><tbody>{selectablePids.map((record) => <tr key={record.id}><td className="selection-cell"><input type="checkbox" aria-label={`选择PID ${record.pid}`} checked={selectedLibraryPidIds.includes(record.id)} onChange={() => setSelectedLibraryPidIds((current) => current.includes(record.id) ? current.filter((id) => id !== record.id) : [...current, record.id])} /></td><td><strong>{record.pid}</strong></td><td>{record.dspSource}</td><td>{record.appVersion}{record.maxAppVersion ? ` ~ ${record.maxAppVersion}` : "及以上"}</td><td>{record.size ?? "全尺寸"}{record.customSize ? `（${record.customSize}）` : ""}</td><td>¥{(record.floor ?? 0.3).toFixed(2)}</td></tr>)}{!selectablePids.length && <tr><td colSpan={6}><div className="empty">暂无可选择的 PID，请先前往 PID 管理创建或启用 PID</div></td></tr>}</tbody></table></div>
-        </div>
-        <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取消</button><button type="button" className="primary" disabled={!selectedLibraryPidIds.length} onClick={confirmPidSelection}>确认选择{selectedLibraryPidIds.length ? `（${selectedLibraryPidIds.length}）` : ""}</button></div>
-      </Modal>}
-
-      {modal === "dsp" && <Modal title="编辑 PID 配置" onClose={() => setModal(null)}>
+      {modal === "dsp" && <Modal title={editingDspId ? "编辑DSP来源" : "添加DSP来源"} onClose={() => setModal(null)}>
         <form onSubmit={saveDsp}>
           <div className="modal-body">
-            <Field label="DSP来源"><input disabled value={dspDraft.name} /></Field>
+            <Field label="DSP来源" required><select value={dspDraft.name} onChange={(event) => setDspDraft({ ...dspDraft, name: event.target.value })}><option value="">请输入关键词搜索DSP来源</option><option>xyysolid通用化公司重命名</option><option>优量汇</option><option>穿山甲</option><option>百度联盟</option></select></Field>
             <Field label="广告场景"><input disabled value={scene} /></Field><Field label="平台"><input disabled value={platform} /></Field><Field label="广告位"><input disabled value={selected?.adSlot ?? ""} /></Field>
             <Field label="尺寸"><div className="radios"><label><input type="radio" checked={dspDraft.size === "全尺寸"} onChange={() => setDspDraft({ ...dspDraft, size: "全尺寸" })} />全尺寸</label><label><input type="radio" checked={dspDraft.size === "自定义"} onChange={() => setDspDraft({ ...dspDraft, size: "自定义" })} />自定义</label>{dspDraft.size === "自定义" && <input placeholder="如 1080×1920" value={dspDraft.customSize} onChange={(event) => setDspDraft({ ...dspDraft, customSize: event.target.value })} />}</div></Field>
-            <Field label="PID"><input disabled value={dspDraft.pids.join(" / ")} /><div className="version-row"><span>应用版本</span><input placeholder="最小版本，如 9.01.0" value={dspDraft.minVersion} onChange={(event) => setDspDraft({ ...dspDraft, minVersion: event.target.value })} /><input placeholder="最大版本，如 9.01.0" value={dspDraft.maxVersion} onChange={(event) => setDspDraft({ ...dspDraft, maxVersion: event.target.value })} /></div></Field>
+            <Field label="PID"><div className="pid-list">{dspDraft.pids.map((pid, index) => <div className="pid-row" key={index}><b>PID #{index + 1}</b><input placeholder="请输入PID" value={pid} onChange={(event) => setDspDraft({ ...dspDraft, pids: dspDraft.pids.map((item, itemIndex) => itemIndex === index ? event.target.value : item) })} />{index > 0 && <button type="button" aria-label="删除PID" onClick={() => setDspDraft({ ...dspDraft, pids: dspDraft.pids.filter((_, itemIndex) => itemIndex !== index) })}>×</button>}</div>)}<div className="version-row"><span>应用版本</span><input placeholder="最小版本，如 9.01.0" value={dspDraft.minVersion} onChange={(event) => setDspDraft({ ...dspDraft, minVersion: event.target.value })} /><input placeholder="最大版本，如 9.01.0" value={dspDraft.maxVersion} onChange={(event) => setDspDraft({ ...dspDraft, maxVersion: event.target.value })} /></div><button type="button" className="secondary" onClick={() => setDspDraft({ ...dspDraft, pids: [...dspDraft.pids, ""] })}>＋ 添加PID</button></div></Field>
             <Field label="底价" required><input type="number" min="0" step="0.1" value={dspDraft.floor} onChange={(event) => setDspDraft({ ...dspDraft, floor: Number(event.target.value) })} /></Field>
             <Field label="状态"><Toggle checked={dspDraft.enabled} label="DSP状态" onChange={() => setDspDraft({ ...dspDraft, enabled: !dspDraft.enabled })} /></Field>
           </div>
