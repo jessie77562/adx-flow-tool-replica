@@ -7,20 +7,22 @@ import {
   getMetricValue,
   sortReportRowsByDate,
   summarizeReport,
+  supportsRevenuePerThousandUsers,
   validateReportDateRange,
   type ReportFilters,
   type ReportMetricKey,
   type ReportRow,
   type ReportSortOrder,
 } from "./report-data";
-import { PID_DSP_SOURCES, PID_SCENES } from "./pid-management";
+import { PID_DSP_SOURCES } from "./pid-management";
 
-type ReportGroup = { id: number; name: string; scene: string; platform: string; isDefault?: boolean };
+type ReportGroup = { id: number; name: string; scene: string; platform: string; adSlot: string; isDefault?: boolean };
 type ReportManagerProps = { groups: ReportGroup[]; onNotify: (message: string) => void };
 type MetricDefinition = { label: string; description: string; formula?: string; freshness: "T+1" | "实时" };
 
 const metricOptions: { key: ReportMetricKey; label: string; type: "money" | "number" | "percent" | "decimal" }[] = [
   { key: "revenuePerThousandUsers", label: "千人均收益", type: "decimal" },
+  { key: "users", label: "DAU", type: "number" },
   { key: "revenue", label: "预估收入", type: "money" },
   { key: "ecpm", label: "eCPM", type: "decimal" },
   { key: "requests", label: "请求量", type: "number" },
@@ -36,6 +38,7 @@ const adSourceOptions = Array.from(new Set([...PID_DSP_SOURCES, "百度联盟"])
 
 const metricDefinitions: MetricDefinition[] = [
   { label: "千人均收益", description: "每千个活跃用户带来的广告收入，用于衡量用户整体变现效率。", formula: "预估收入 ÷ 用户数 × 1000", freshness: "T+1" },
+  { label: "DAU", description: "统计日期内使用应用的去重活跃用户数。", formula: "当日活跃用户去重数", freshness: "T+1" },
   { label: "预估收入", description: "当前统计日期内，各广告来源产生的预估广告收入之和。", formula: "各广告来源预估收入之和", freshness: "实时" },
   { label: "eCPM", description: "每一千次有效广告展示带来的预估收入。", formula: "预估收入 ÷ 展示量 × 1000", freshness: "实时" },
   { label: "千次请求价值", description: "每一千次进入 ADX 的广告请求带来的预估收入。", formula: "预估收入 ÷ 请求量 × 1000", freshness: "实时" },
@@ -52,10 +55,8 @@ const metricDefinitions: MetricDefinition[] = [
   { label: "效果广告千人均收益", description: "每千个发起效果广告请求的用户带来的预估收入。", formula: "预估收入 ÷ 效果广告请求人数 × 1000", freshness: "实时" },
 ];
 
-const reportTableColumns = [{ label: "日期", freshness: "" }, ...metricDefinitions.map(({ label, freshness }) => ({ label, freshness }))];
-
 function createDefaultFilters(): ReportFilters {
-  return { ...defaultReportDateRange(), scene: "", platform: "", group: "", app: "美柚", abGroup: "", adSources: [], versionOperator: "", appVersion: "" };
+  return { ...defaultReportDateRange(), adSlots: [], platforms: [], groupIds: [], app: "美柚", abGroup: "", adSources: [] };
 }
 
 const numberFormatter = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 });
@@ -75,8 +76,31 @@ function formatChartValue(value: number, type: "money" | "number" | "percent" | 
   return value.toFixed(2);
 }
 
-function tableCells(row: ReportRow) {
-  return <><td>{row.date}</td><td>{decimalFormatter.format(row.revenuePerThousandUsers)}</td><td>{decimalFormatter.format(row.revenue)}</td><td>{decimalFormatter.format(row.ecpm)}</td><td>{decimalFormatter.format(row.requestValue)}</td><td>{numberFormatter.format(row.requests)}</td><td>{decimalFormatter.format(row.returnRate * 100)}%</td><td>{numberFormatter.format(row.bidWins)}</td><td>{decimalFormatter.format(row.bidSuccessRate * 100)}%</td><td>{numberFormatter.format(row.impressions)}</td><td>{decimalFormatter.format(row.winImpressionRate * 100)}%</td><td>{numberFormatter.format(row.clicks)}</td><td>{decimalFormatter.format(row.ctr * 100)}%</td><td>{decimalFormatter.format(row.cpc)}</td><td>{numberFormatter.format(row.effectRequestUsers)}</td><td>{decimalFormatter.format(row.effectRevenuePerThousandUsers)}</td></>;
+function tableCells(row: ReportRow, showRevenuePerThousandUsers: boolean) {
+  return <><td>{row.date}</td>{showRevenuePerThousandUsers && <td>{decimalFormatter.format(row.revenuePerThousandUsers)}</td>}<td>{numberFormatter.format(row.users)}</td><td>{decimalFormatter.format(row.revenue)}</td><td>{decimalFormatter.format(row.ecpm)}</td><td>{decimalFormatter.format(row.requestValue)}</td><td>{numberFormatter.format(row.requests)}</td><td>{decimalFormatter.format(row.returnRate * 100)}%</td><td>{numberFormatter.format(row.bidWins)}</td><td>{decimalFormatter.format(row.bidSuccessRate * 100)}%</td><td>{numberFormatter.format(row.impressions)}</td><td>{decimalFormatter.format(row.winImpressionRate * 100)}%</td><td>{numberFormatter.format(row.clicks)}</td><td>{decimalFormatter.format(row.ctr * 100)}%</td><td>{decimalFormatter.format(row.cpc)}</td><td>{numberFormatter.format(row.effectRequestUsers)}</td><td>{decimalFormatter.format(row.effectRevenuePerThousandUsers)}</td></>;
+}
+
+type MultiFilterKey = "adSlots" | "platforms" | "groupIds" | "adSources";
+type MultiSelectOption = { value: string; label: string };
+
+function selectionSummary(values: string[], options: MultiSelectOption[]): string {
+  if (!values.length) return "全部";
+  const labels = values.map((value) => options.find((option) => option.value === value)?.label ?? value);
+  return labels.length <= 2 ? labels.join("、") : `已选 ${labels.length} 项`;
+}
+
+function MultiSelectField({ label, values, options, onToggle, onClear }: { label: string; values: string[]; options: MultiSelectOption[]; onToggle: (value: string) => void; onClear: () => void }) {
+  const summary = selectionSummary(values, options);
+  return <div className="report-multi-field">
+    <span>{label}</span>
+    <details className="report-multi-select">
+      <summary title={summary}>{summary}</summary>
+      <div className="report-multi-options" role="group" aria-label={`${label}多选`}>
+        <button type="button" className={values.length === 0 ? "active" : ""} onClick={onClear}>全部</button>
+        {options.map((option) => <label key={option.value}><input type="checkbox" checked={values.includes(option.value)} onChange={() => onToggle(option.value)} /><span>{option.label}</span></label>)}
+      </div>
+    </details>
+  </div>;
 }
 
 export default function ReportManager({ groups, onNotify }: ReportManagerProps) {
@@ -87,12 +111,13 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [definitionLabel, setDefinitionLabel] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<ReportSortOrder>("asc");
-  const adSourceDetailsRef = useRef<HTMLDetailsElement>(null);
+  const reportFiltersRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      const details = adSourceDetailsRef.current;
-      if (details?.open && event.target && !details.contains(event.target as Node)) details.open = false;
+      reportFiltersRef.current?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
+        if (event.target && !details.contains(event.target as Node)) details.open = false;
+      });
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
@@ -101,7 +126,11 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
   const rows = useMemo(() => generateDailyReport(appliedFilters), [appliedFilters]);
   const sortedRows = useMemo(() => sortReportRowsByDate(rows, sortOrder), [rows, sortOrder]);
   const total = useMemo(() => summarizeReport(rows), [rows]);
-  const selectedMetric = metricOptions.find((item) => item.key === metric) ?? metricOptions[0];
+  const showRevenuePerThousandUsers = supportsRevenuePerThousandUsers(appliedFilters);
+  const visibleMetricOptions = metricOptions.filter((item) => showRevenuePerThousandUsers || item.key !== "revenuePerThousandUsers");
+  const visibleMetricDefinitions = metricDefinitions.filter((item) => showRevenuePerThousandUsers || item.label !== "千人均收益");
+  const reportTableColumns = [{ label: "日期", freshness: "" }, ...visibleMetricDefinitions.map(({ label, freshness }) => ({ label, freshness }))];
+  const selectedMetric = visibleMetricOptions.find((item) => item.key === metric) ?? visibleMetricOptions[0];
   const activeDefinition = metricDefinitions.find((item) => item.label === definitionLabel) ?? null;
   const values = rows.map((row) => getMetricValue(row, metric));
   const maxValue = Math.max(...values, 1);
@@ -117,32 +146,36 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
   }));
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
   const chartTicks = Array.from({ length: 5 }, (_, index) => maxValue - valueRange * index / 4);
-  const adSourceSummary = filters.adSources.length === 0
-    ? "全部"
-    : filters.adSources.length <= 2
-      ? filters.adSources.join("、")
-      : `已选 ${filters.adSources.length} 项`;
+  const adSlotOptions = useMemo(() => Array.from(new Set(groups.map((group) => group.adSlot))).map((value) => ({ value, label: value })), [groups]);
+  const platformOptions: MultiSelectOption[] = [{ value: "Android", label: "安卓" }, { value: "IOS", label: "iOS" }];
+  const groupOptions = useMemo(() => {
+    const options: MultiSelectOption[] = [{ value: "default", label: "默认分组" }, { value: "custom", label: "自定义分组" }];
+    groups.forEach((group) => options.push({ value: String(group.id), label: group.name }));
+    return options;
+  }, [groups]);
+  const sourceOptions = adSourceOptions.map((value) => ({ value, label: value }));
 
-  const toggleAdSource = (source: string) => {
+  const toggleMultiFilter = (field: MultiFilterKey, value: string) => {
     setFilters((current) => ({
       ...current,
-      adSources: current.adSources.includes(source)
-        ? current.adSources.filter((item) => item !== source)
-        : [...current.adSources, source],
+      [field]: current[field].includes(value)
+        ? current[field].filter((item) => item !== value)
+        : [...current[field], value],
     }));
   };
 
-  const closeAdSourceDropdown = () => {
-    if (adSourceDetailsRef.current) adSourceDetailsRef.current.open = false;
+  const closeFilterDropdowns = () => {
+    reportFiltersRef.current?.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => { details.open = false; });
   };
 
   const submitQuery = (event: FormEvent) => {
     event.preventDefault();
-    closeAdSourceDropdown();
+    closeFilterDropdowns();
     const error = validateReportDateRange(filters.startDate, filters.endDate);
     setDateError(error);
     if (error) return;
     setAppliedFilters({ ...filters });
+    if (!supportsRevenuePerThousandUsers(filters) && metric === "revenuePerThousandUsers") setMetric("users");
     setHoveredIndex(null);
   };
 
@@ -155,13 +188,13 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
     setHoveredIndex(null);
     setDefinitionLabel(null);
     setSortOrder("asc");
-    closeAdSourceDropdown();
+    closeFilterDropdowns();
   };
 
   const exportReport = () => {
     if (!rows.length) return onNotify("暂无数据");
-    const headers = ["日期", "千人均收益", "预估收入", "eCPM", "千次请求价值", "请求量", "返回率", "竞价成功数", "竞价成功率", "展示量", "竞胜展示率", "点击数", "点击率", "cpc", "效果广告请求人数", "效果广告千人均收益"];
-    const csvRows = [total, ...sortedRows].filter((row): row is ReportRow => Boolean(row)).map((row) => [row.date, row.revenuePerThousandUsers.toFixed(2), row.revenue.toFixed(2), row.ecpm.toFixed(2), row.requestValue.toFixed(2), Math.round(row.requests), `${(row.returnRate * 100).toFixed(2)}%`, Math.round(row.bidWins), `${(row.bidSuccessRate * 100).toFixed(2)}%`, Math.round(row.impressions), `${(row.winImpressionRate * 100).toFixed(2)}%`, Math.round(row.clicks), `${(row.ctr * 100).toFixed(2)}%`, row.cpc.toFixed(2), Math.round(row.effectRequestUsers), row.effectRevenuePerThousandUsers.toFixed(2)]);
+    const headers = ["日期", ...(showRevenuePerThousandUsers ? ["千人均收益"] : []), "DAU", "预估收入", "eCPM", "千次请求价值", "请求量", "返回率", "竞价成功数", "竞价成功率", "展示量", "竞胜展示率", "点击数", "点击率", "cpc", "效果广告请求人数", "效果广告千人均收益"];
+    const csvRows = [total, ...sortedRows].filter((row): row is ReportRow => Boolean(row)).map((row) => [row.date, ...(showRevenuePerThousandUsers ? [row.revenuePerThousandUsers.toFixed(2)] : []), Math.round(row.users), row.revenue.toFixed(2), row.ecpm.toFixed(2), row.requestValue.toFixed(2), Math.round(row.requests), `${(row.returnRate * 100).toFixed(2)}%`, Math.round(row.bidWins), `${(row.bidSuccessRate * 100).toFixed(2)}%`, Math.round(row.impressions), `${(row.winImpressionRate * 100).toFixed(2)}%`, Math.round(row.clicks), `${(row.ctr * 100).toFixed(2)}%`, row.cpc.toFixed(2), Math.round(row.effectRequestUsers), row.effectRevenuePerThousandUsers.toFixed(2)]);
     const csv = `\uFEFF${[headers, ...csvRows].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const anchor = document.createElement("a");
@@ -174,29 +207,19 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
 
   return <section className="panel report-panel">
     <h1>综合报表</h1>
-    <form className="report-filters" onSubmit={submitQuery}>
+    <form ref={reportFiltersRef} className="report-filters" onSubmit={submitQuery}>
       <div className="report-date-field"><span><b>*</b>日期</span><div className="date-range-inputs"><input type="date" aria-label="开始日期" value={filters.startDate} onChange={(event) => setFilters({ ...filters, startDate: event.target.value })} /><span>至</span><input type="date" aria-label="结束日期" value={filters.endDate} onChange={(event) => setFilters({ ...filters, endDate: event.target.value })} /></div>{dateError && <small className="report-filter-error">{dateError}</small>}</div>
-      <label>广告场景<select value={filters.scene} onChange={(event) => setFilters({ ...filters, scene: event.target.value, group: "" })}><option value="">全部</option>{PID_SCENES.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>平台<select value={filters.platform} onChange={(event) => setFilters({ ...filters, platform: event.target.value, group: "" })}><option value="">全部</option><option value="Android">安卓</option><option value="IOS">iOS</option></select></label>
-      <label>分组<select value={filters.group} onChange={(event) => setFilters({ ...filters, group: event.target.value })}><option value="">全部分组</option><option value="default">默认分组</option><option value="custom">自定义分组</option>{groups.filter((group) => (!filters.scene || group.scene === filters.scene) && (!filters.platform || group.platform === filters.platform)).map((group) => <option value={String(group.id)} key={group.id}>{group.name}</option>)}</select></label>
+      <MultiSelectField label="广告位" values={filters.adSlots} options={adSlotOptions} onToggle={(value) => toggleMultiFilter("adSlots", value)} onClear={() => setFilters((current) => ({ ...current, adSlots: [] }))} />
+      <MultiSelectField label="平台" values={filters.platforms} options={platformOptions} onToggle={(value) => toggleMultiFilter("platforms", value)} onClear={() => setFilters((current) => ({ ...current, platforms: [] }))} />
+      <MultiSelectField label="分组" values={filters.groupIds} options={groupOptions} onToggle={(value) => toggleMultiFilter("groupIds", value)} onClear={() => setFilters((current) => ({ ...current, groupIds: [] }))} />
       <label>应用<select value={filters.app} onChange={(event) => setFilters({ ...filters, app: event.target.value })}><option value="">全部</option><option>美柚</option></select></label>
       <label>A/B测试分组<select value={filters.abGroup} onChange={(event) => setFilters({ ...filters, abGroup: event.target.value })}><option value="">全部</option><option value="none">无AB分组</option><option value="A">对照组A</option><option value="B">测试组B</option></select></label>
-      <div className="report-multi-field">
-        <span>广告来源</span>
-        <details ref={adSourceDetailsRef} className="report-multi-select">
-          <summary title={adSourceSummary}>{adSourceSummary}</summary>
-          <div className="report-multi-options" role="group" aria-label="广告来源多选">
-            <button type="button" className={filters.adSources.length === 0 ? "active" : ""} onClick={() => setFilters((current) => ({ ...current, adSources: [] }))}>全部</button>
-            {adSourceOptions.map((source) => <label key={source}><input type="checkbox" checked={filters.adSources.includes(source)} onChange={() => toggleAdSource(source)} /><span>{source}</span></label>)}
-          </div>
-        </details>
-      </div>
-      <div className="version-filter"><span>APP版本</span><div><select aria-label="版本关系" value={filters.versionOperator} onChange={(event) => setFilters({ ...filters, versionOperator: event.target.value })}><option value="">全部</option><option value="gte">大于等于</option><option value="lte">小于等于</option><option value="gt">大于</option><option value="lt">小于</option><option value="eq">等于</option><option value="contains">包含</option></select><input aria-label="APP版本" value={filters.appVersion} placeholder="如 9.01.0" onChange={(event) => setFilters({ ...filters, appVersion: event.target.value })} /></div></div>
+      <MultiSelectField label="广告来源" values={filters.adSources} options={sourceOptions} onToggle={(value) => toggleMultiFilter("adSources", value)} onClear={() => setFilters((current) => ({ ...current, adSources: [] }))} />
       <div className="report-filter-actions"><button type="submit" className="primary">查询</button><button type="button" className="secondary" onClick={reset}>重置</button></div>
     </form>
 
     <div className="report-chart-card">
-      <div className="report-section-heading"><div><h2>数据图表</h2><span>{appliedFilters.startDate} 至 {appliedFilters.endDate} · 按天</span></div><div className="report-metric-selector"><span>数据指标<button type="button" className="metric-help-button" aria-label={`查看${selectedMetric.label}指标释义`} onClick={() => setDefinitionLabel(selectedMetric.label)}>?</button></span><select aria-label="数据指标" value={metric} onChange={(event) => { setMetric(event.target.value as ReportMetricKey); setHoveredIndex(null); }}>{metricOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}</select></div></div>
+      <div className="report-section-heading"><div><h2>数据图表</h2><span>{appliedFilters.startDate} 至 {appliedFilters.endDate} · 按天</span></div><div className="report-metric-control"><div className="report-metric-selector"><span>数据指标<button type="button" className="metric-help-button" aria-label={`查看${selectedMetric.label}指标释义`} onClick={() => setDefinitionLabel(selectedMetric.label)}>?</button></span><select aria-label="数据指标" value={metric} onChange={(event) => { setMetric(event.target.value as ReportMetricKey); setHoveredIndex(null); }}>{visibleMetricOptions.map((item) => <option value={item.key} key={item.key}>{item.label}</option>)}</select></div>{!showRevenuePerThousandUsers && <small className="report-metric-hint">当前筛选包含多选项或广告来源，千人均收益暂不展示</small>}</div></div>
       {rows.length ? <div className="line-chart" onMouseLeave={() => setHoveredIndex(null)}>
         <svg viewBox={`0 0 ${plot.width} ${plot.height}`} role="img" aria-label={`${selectedMetric.label}按天趋势折线图`}>
           {chartTicks.map((tick, index) => { const y = plot.top + innerHeight * index / 4; return <g key={index}><line x1={plot.left} x2={plot.width - plot.right} y1={y} y2={y} className="chart-grid-line" /><text x={plot.left - 12} y={y + 4} textAnchor="end" className="chart-axis-label">{formatChartValue(tick, selectedMetric.type)}</text></g>; })}
@@ -210,7 +233,7 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
     </div>
 
     <div className="report-detail-heading"><div><h2>数据明细</h2><span>共 {rows.length} 天</span></div><label className="report-sort-control">时间排序<select aria-label="数据明细时间排序" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as ReportSortOrder)}><option value="asc">日期升序</option><option value="desc">日期降序</option></select></label></div>
-    <div className="table-wrap report-table"><table><thead><tr>{reportTableColumns.map(({ label, freshness }) => <th key={label}><span className="report-metric-heading">{label}{freshness && <button type="button" className="metric-help-button" aria-label={`查看${label}指标释义`} onClick={() => setDefinitionLabel(label)}>?</button>}</span>{freshness && <small>{freshness}</small>}</th>)}</tr></thead><tbody>{total && <tr className="report-total-row">{tableCells(total)}</tr>}{sortedRows.map((row) => <tr key={row.date}>{tableCells(row)}</tr>)}{!rows.length && <tr><td colSpan={16}><div className="report-empty">暂无数据</div></td></tr>}</tbody></table></div>
+    <div className="table-wrap report-table"><table><thead><tr>{reportTableColumns.map(({ label, freshness }) => <th key={label}><span className="report-metric-heading">{label}{freshness && <button type="button" className="metric-help-button" aria-label={`查看${label}指标释义`} onClick={() => setDefinitionLabel(label)}>?</button>}</span>{freshness && <small>{freshness}</small>}</th>)}</tr></thead><tbody>{total && <tr className="report-total-row">{tableCells(total, showRevenuePerThousandUsers)}</tr>}{sortedRows.map((row) => <tr key={row.date}>{tableCells(row, showRevenuePerThousandUsers)}</tr>)}{!rows.length && <tr><td colSpan={reportTableColumns.length}><div className="report-empty">暂无数据</div></td></tr>}</tbody></table></div>
 
     {activeDefinition && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setDefinitionLabel(null)}><section className="modal metric-definition-modal" role="dialog" aria-modal="true" aria-labelledby="metric-definition-title"><header><h2 id="metric-definition-title">{activeDefinition.label}</h2><button type="button" aria-label="关闭指标释义" onClick={() => setDefinitionLabel(null)}>×</button></header><div className="metric-definition-body"><div><h3>指标释义</h3><p>{activeDefinition.description}</p></div>{activeDefinition.formula && <div><h3>计算公式</h3><p className="metric-formula">{activeDefinition.formula}</p></div>}<div className="metric-freshness"><span>数据时效</span><b>{activeDefinition.freshness}</b></div></div><footer className="modal-actions"><button type="button" className="primary" onClick={() => setDefinitionLabel(null)}>知道了</button></footer></section></div>}
   </section>;

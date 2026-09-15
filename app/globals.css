@@ -212,6 +212,8 @@ tr:last-child td { border-bottom: 0; }
 .report-section-heading > div > span, .report-detail-heading span { color: var(--muted); font-size: 13px; }
 .report-metric-selector { display: flex; align-items: center; gap: 9px; color: #62666d; }
 .report-metric-selector > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.report-metric-control { display: grid; justify-items: end; gap: 5px; }
+.report-metric-hint { color: #9a6a7f; font-weight: 400; }
 .report-section-heading select { min-width: 150px; }
 .line-chart { position: relative; min-height: 320px; padding: 6px 14px 0; overflow: hidden; }
 .line-chart svg { width: 100%; height: 310px; overflow: visible; }

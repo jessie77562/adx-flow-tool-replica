@@ -257,7 +257,7 @@ export default function Home() {
   const enabledSelectedCount = selectedDsps.filter((dsp) => dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const disabledSelectedCount = selectedDsps.filter((dsp) => !dsp.enabled).reduce((sum, dsp) => sum + dsp.pids.length, 0);
   const allVisibleSelected = visibleDsps.length > 0 && visibleDsps.every((dsp) => selectedDspIds.includes(dsp.id));
-  const managerGroups = useMemo(() => sortGroupsByPriority(managedGroupDraft), [managedGroupDraft]);
+  const managerGroups = managedGroupDraft;
   const manageableGroups = managerGroups.filter((group) => !group.isDefault);
   const selectedManageGroups = manageableGroups.filter((group) => selectedGroupIds.includes(group.id));
   const allManageableSelected = manageableGroups.length > 0 && manageableGroups.every((group) => selectedGroupIds.includes(group.id));
@@ -354,6 +354,8 @@ export default function Home() {
   const saveGroup = (event: FormEvent) => {
     event.preventDefault();
     if (!groupDraft.name.trim()) return notify("请输入分组名称");
+    if (!Number.isInteger(groupDraft.priority) || groupDraft.priority <= 0) return notify("优先级必须为大于 0 的整数");
+    if (sceneGroups.some((group) => group.id !== editingGroupId && group.priority === groupDraft.priority)) return notify("优先级数值不可重复，请重新设置");
     if (editingGroupId) {
       setGroups((current) => current.map((group) => group.id === editingGroupId ? { ...group, ...groupDraft } : group));
       notify("分组已更新");
@@ -509,7 +511,7 @@ export default function Home() {
           <div className="group-manager-page-heading"><div><button type="button" className="back-link" onClick={closeGroupManager}>‹ 返回流量分组管理</button><h1>分组管理</h1></div><div className="group-manager-page-actions"><button type="button" className="secondary" onClick={closeGroupManager}>取消</button><button type="button" className="primary" onClick={confirmGroupManager}>确认</button></div></div>
           <div className="group-manager-body">
             <div className="group-manager-meta"><strong>当前场景：{scene}</strong><span>/</span><strong>平台：{platform === "IOS" ? "iOS" : platform}</strong></div>
-            <div className="group-manager-tip"><span>↑</span><div><strong>输入数值设置分组优先级，数值越大优先级越高</strong><small>列表会按优先级从高到低排列，修改后点击“确认”保存。</small></div></div>
+            <div className="group-manager-tip"><span>↑</span><div><strong>输入数值设置分组优先级，数值越大优先级越高</strong><small>输入过程中列表顺序不变；点击“确认”保存后，分组按优先级从高到低重新排列。</small></div></div>
             <div className="group-manager-toolbar">
               <label><input type="checkbox" checked={allManageableSelected} onChange={toggleAllManageableGroups} />全选非默认分组</label>
               <span>已选择 {selectedManageGroups.length} 个分组</span>
@@ -596,7 +598,7 @@ export default function Home() {
         <form onSubmit={saveGroup}>
           <div className="modal-body">
             <Field label="分组名称" required><input maxLength={20} placeholder="请输入分组名称" value={groupDraft.name} onChange={(event) => setGroupDraft({ ...groupDraft, name: event.target.value })} /><small className="counter">{groupDraft.name.length}/20</small></Field>
-            <Field label="优先级" hint="可在“分组管理”页面输入数值调整，数值越大优先级越高"><input disabled value={groupDraft.priority} /></Field>
+            <Field label="优先级" hint={editingGroupId ? "数值越大优先级越高，保存后按优先级重新排列" : "新增分组默认使用当前最高优先级"}><input type="number" min="1" step="1" disabled={!editingGroupId} value={groupDraft.priority} onChange={(event) => setGroupDraft({ ...groupDraft, priority: Number(event.target.value) })} /></Field>
             <Field label="广告场景"><input disabled value={scene} /></Field>
             <Field label="平台"><input disabled value={platform} /></Field>
             <Field label="广告位" required><select value={groupDraft.adSlot} onChange={(event) => setGroupDraft({ ...groupDraft, adSlot: event.target.value })}><option>1000-美柚-开屏广告</option><option>1001-美柚-开屏广告-新</option><option>{scene}-默认广告位</option></select></Field>

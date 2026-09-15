@@ -1,17 +1,15 @@
-export type ReportMetricKey = "revenuePerThousandUsers" | "revenue" | "ecpm" | "requests" | "impressions" | "clicks" | "ctr" | "bidSuccessRate" | "winImpressionRate" | "cpc";
+export type ReportMetricKey = "revenuePerThousandUsers" | "users" | "revenue" | "ecpm" | "requests" | "impressions" | "clicks" | "ctr" | "bidSuccessRate" | "winImpressionRate" | "cpc";
 export type ReportSortOrder = "asc" | "desc";
 
 export type ReportFilters = {
   startDate: string;
   endDate: string;
-  scene: string;
-  platform: string;
-  group: string;
+  adSlots: string[];
+  platforms: string[];
+  groupIds: string[];
   app: string;
   abGroup: string;
   adSources: string[];
-  versionOperator: string;
-  appVersion: string;
 };
 
 export type ReportRow = {
@@ -81,13 +79,19 @@ function stringHash(value: string): number {
 
 function filterMultiplier(filters: ReportFilters): number {
   let multiplier = 1;
-  if (filters.scene) multiplier *= 0.72;
-  if (filters.platform) multiplier *= 0.61;
-  if (filters.group) multiplier *= 0.48;
+  if (filters.adSlots.length) multiplier *= Math.min(0.36 * filters.adSlots.length, 0.92);
+  if (filters.platforms.length) multiplier *= Math.min(0.52 * filters.platforms.length, 1);
+  if (filters.groupIds.length) multiplier *= Math.min(0.31 * filters.groupIds.length, 0.9);
   if (filters.abGroup) multiplier *= 0.52;
   if (filters.adSources.length) multiplier *= Math.min(0.37 * filters.adSources.length, 0.9);
-  if (filters.appVersion.trim()) multiplier *= 0.68;
   return multiplier;
+}
+
+export function supportsRevenuePerThousandUsers(filters: ReportFilters): boolean {
+  return filters.adSlots.length <= 1
+    && filters.platforms.length <= 1
+    && filters.groupIds.length <= 1
+    && filters.adSources.length === 0;
 }
 
 function withDerivedMetrics(raw: Omit<ReportRow, "revenuePerThousandUsers" | "ecpm" | "requestValue" | "returnRate" | "bidSuccessRate" | "winImpressionRate" | "ctr" | "cpc" | "effectRevenuePerThousandUsers">): ReportRow {
@@ -116,7 +120,10 @@ export function generateDailyReport(filters: ReportFilters): ReportRow[] {
     current.setDate(start.getDate() + index);
     const date = formatDateInput(current);
     const selectedSources = filters.adSources.slice().sort().join("|");
-    const seed = stringHash(`${date}-${filters.scene}-${filters.platform}-${filters.group}-${selectedSources}-${filters.appVersion}`);
+    const selectedSlots = filters.adSlots.slice().sort().join("|");
+    const selectedPlatforms = filters.platforms.slice().sort().join("|");
+    const selectedGroups = filters.groupIds.slice().sort().join("|");
+    const seed = stringHash(`${date}-${selectedSlots}-${selectedPlatforms}-${selectedGroups}-${selectedSources}`);
     const wave = 0.9 + (seed % 210) / 1000;
     const weekdayFactor = [0.91, 0.97, 1.01, 1.03, 1.06, 1.09, 0.95][current.getDay()];
     const scale = multiplier * wave * weekdayFactor;

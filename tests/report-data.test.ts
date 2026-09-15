@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultReportDateRange, generateDailyReport, inclusiveDateSpan, sortReportRowsByDate, summarizeReport, validateReportDateRange, type ReportFilters } from "../app/report-data.ts";
+import { defaultReportDateRange, generateDailyReport, inclusiveDateSpan, sortReportRowsByDate, summarizeReport, supportsRevenuePerThousandUsers, validateReportDateRange, type ReportFilters } from "../app/report-data.ts";
 
-const filters: ReportFilters = { startDate: "2026-07-06", endDate: "2026-07-12", scene: "", platform: "", group: "", app: "美柚", abGroup: "", adSources: [], versionOperator: "", appVersion: "" };
+const filters: ReportFilters = { startDate: "2026-07-06", endDate: "2026-07-12", adSlots: [], platforms: [], groupIds: [], app: "美柚", abGroup: "", adSources: [] };
 
 test("defaults the report to the latest seven inclusive days", () => {
   const range = defaultReportDateRange(new Date(2026, 6, 12));
@@ -31,6 +31,15 @@ test("supports selecting multiple ad sources", () => {
   assert.equal(multipleSources.length, 7);
   assert.deepEqual(multipleSources, generateDailyReport({ ...filters, adSources: ["穿山甲", "腾讯广告"] }));
   assert.ok(multipleSources.reduce((sum, row) => sum + row.revenue, 0) > singleSource.reduce((sum, row) => sum + row.revenue, 0));
+});
+
+test("shows revenue per thousand users only for eligible filter combinations", () => {
+  assert.equal(supportsRevenuePerThousandUsers(filters), true);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, adSlots: ["开屏", "插屏"] }), false);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, platforms: ["IOS", "Android"] }), false);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, groupIds: ["211", "301"] }), false);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, adSources: ["腾讯广告"] }), false);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, adSlots: ["开屏"], platforms: ["IOS"], groupIds: ["211"] }), true);
 });
 
 test("sorts report detail rows by date without changing the chart source order", () => {
