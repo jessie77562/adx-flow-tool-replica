@@ -95,12 +95,12 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
     setError("");
   };
 
-  const saveRunningName = () => {
-    if (!experiment || testName.trim() === experiment.testName) return;
-    const validation = validateExperiment(testName, experiment.aTraffic, experiment.bTraffic);
+  const saveRunningBasicInfo = () => {
+    if (!experiment || (testName.trim() === experiment.testName && aTraffic === experiment.aTraffic && bTraffic === experiment.bTraffic)) return;
+    const validation = validateExperiment(testName, aTraffic, bTraffic);
     if (validation) return setError(validation);
-    onChange({ ...experiment, testName: testName.trim(), updatedAt: formatExperimentTime() });
-    onNotify("测试名称已保存");
+    onChange(buildRecord("running"));
+    onNotify("实验基础信息已保存");
   };
 
   return <section className="panel experiment-page">
@@ -108,8 +108,8 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
 
     <section className="experiment-section"><h2>基础信息</h2><div className="experiment-form-grid">
       <label><span>分组名称</span><input disabled value={group.name} /></label>
-      <label><span><b>*</b>测试名称</span><div className="named-input"><input maxLength={30} placeholder="请输入测试名称" value={testName} onChange={(event) => { setTestName(event.target.value); setError(""); }} onBlur={isRunning ? saveRunningName : undefined} /><small>{testName.length}/30</small></div></label>
-      <div className="experiment-ratio-field"><span><b>*</b>流量比例</span><div><strong className="group-dot a">A</strong><label>对照组<input type="number" min="0" max="100" disabled={isRunning} value={aTraffic} onChange={(event) => updateTraffic("A", Number(event.target.value))} />%</label><i>:</i><strong className="group-dot b">B</strong><label>实验组<input type="number" min="0" max="100" disabled={isRunning} value={bTraffic} onChange={(event) => updateTraffic("B", Number(event.target.value))} />%</label></div></div>
+      <label><span><b>*</b>测试名称</span><div className="named-input"><input maxLength={30} placeholder="请输入测试名称" value={testName} onChange={(event) => { setTestName(event.target.value); setError(""); }} onBlur={isRunning ? saveRunningBasicInfo : undefined} /><small>{testName.length}/30</small></div></label>
+      <div className="experiment-ratio-field"><span><b>*</b>流量比例</span><div><strong className="group-dot a">A</strong><label>对照组<input type="number" min="0" max="100" value={aTraffic} onChange={(event) => updateTraffic("A", Number(event.target.value))} onBlur={isRunning ? saveRunningBasicInfo : undefined} />%</label><i>:</i><strong className="group-dot b">B</strong><label>实验组<input type="number" min="0" max="100" value={bTraffic} onChange={(event) => updateTraffic("B", Number(event.target.value))} onBlur={isRunning ? saveRunningBasicInfo : undefined} />%</label></div></div>
       {isCreate && <label className="experiment-copy"><span /><span><input type="checkbox" checked={copyAtoB} onChange={(event) => setCopyAtoB(event.target.checked)} />将A组配置复制给B组</span></label>}
       {error && <div className="experiment-error" role="alert">{error}</div>}
       {!isCreate && <><div className="experiment-info-row"><span>实验创建时间</span><strong>{experiment.createdAt ?? "尚未开启"}</strong></div><div className="experiment-info-row"><span>数据统计周期</span><strong>{experiment.createdAt ? `${experiment.createdAt} ~ 至今` : "开启测试后开始统计"}</strong></div></>}
