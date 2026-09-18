@@ -7,7 +7,7 @@ import PidManager from "./pid-manager";
 import ReportManager from "./report-manager";
 import AbReportManager from "./ab-report-manager";
 import GroupExperimentManager from "./group-experiment-manager";
-import type { GroupExperiment } from "./experiment-management";
+import { allocateAllTraffic, startExperiment, type GroupExperiment } from "./experiment-management";
 
 export const dynamic = "force-static";
 
@@ -155,6 +155,7 @@ export default function Home() {
   const [dsps, setDsps] = useState<Dsp[]>(initialDsps);
   const [experiments, setExperiments] = useState<GroupExperiment[]>(initialExperiments);
   const [experimentPage, setExperimentPage] = useState<"create" | "detail" | null>(null);
+  const [pendingExperimentAllocation, setPendingExperimentAllocation] = useState<"A" | "B" | null>(null);
   const [scene, setScene] = useState("开屏");
   const [platform, setPlatform] = useState("IOS");
   const [showEffectiveOnly, setShowEffectiveOnly] = useState(true);
@@ -265,6 +266,21 @@ export default function Home() {
   const selectedDisabledGroups = selectedManageGroups.filter((group) => !group.enabled).length;
 
   const notify = (message: string) => setToast(message);
+  const applyExperiment = (nextExperiment: GroupExperiment) => {
+    setExperiments((current) => current.some((item) => item.groupId === nextExperiment.groupId) ? current.map((item) => item.groupId === nextExperiment.groupId ? nextExperiment : item) : [...current, nextExperiment]);
+    setGroups((current) => current.map((group) => group.id === nextExperiment.groupId ? { ...group, ab: true, traffic: nextExperiment.bTraffic, experiment: nextExperiment.aTraffic === 100 ? "A对照组" : "B测试组" } : group));
+  };
+  const startSelectedExperiment = () => {
+    if (!selectedExperiment) return;
+    applyExperiment(startExperiment(selectedExperiment));
+    notify("A/B测试已开启");
+  };
+  const confirmExperimentAllocation = () => {
+    if (!selectedExperiment || !pendingExperimentAllocation) return;
+    applyExperiment(allocateAllTraffic(selectedExperiment, pendingExperimentAllocation));
+    notify(`已将分组流量全部配置给${pendingExperimentAllocation}组`);
+    setPendingExperimentAllocation(null);
+  };
   const patchSelected = (patch: Partial<Group>) => selected && setGroups((current) => current.map((group) => group.id === selected.id ? { ...group, ...patch } : group));
 
   const requestSelectedGroupStatusChange = () => {
@@ -504,10 +520,7 @@ export default function Home() {
       </aside>
 
       <main className="content">
-        {currentView === "groups" && experimentPage && selected ? <GroupExperimentManager group={selected} dsps={groupDsps} experiment={experimentPage === "detail" ? selectedExperiment : undefined} onBack={() => setExperimentPage(null)} onNotify={notify} onChange={(nextExperiment) => {
-          setExperiments((current) => current.some((item) => item.groupId === nextExperiment.groupId) ? current.map((item) => item.groupId === nextExperiment.groupId ? nextExperiment : item) : [...current, nextExperiment]);
-          setGroups((current) => current.map((group) => group.id === nextExperiment.groupId ? { ...group, ab: true, traffic: nextExperiment.bTraffic, experiment: nextExperiment.aTraffic === 100 ? "A对照组" : "B测试组" } : group));
-        }} /> : currentView === "groups" && groupManagerPage ? <section className="panel group-manager-page">
+        {currentView === "groups" && experimentPage && selected ? <GroupExperimentManager group={selected} dsps={groupDsps} experiment={experimentPage === "detail" ? selectedExperiment : undefined} onBack={() => setExperimentPage(null)} onNotify={notify} onChange={applyExperiment} /> : currentView === "groups" && groupManagerPage ? <section className="panel group-manager-page">
           <div className="group-manager-page-heading"><div><button type="button" className="back-link" onClick={closeGroupManager}>‹ 返回流量分组管理</button><h1>分组管理</h1></div><div className="group-manager-page-actions"><button type="button" className="secondary" onClick={closeGroupManager}>取消</button><button type="button" className="primary" onClick={confirmGroupManager}>确认</button></div></div>
           <div className="group-manager-body">
             <div className="group-manager-meta"><strong>当前场景：{scene}</strong><span>/</span><strong>平台：{platform === "IOS" ? "iOS" : platform}</strong></div>
@@ -553,7 +566,7 @@ export default function Home() {
             <div className="group-detail">
               <div><strong>广告位：</strong><span className="pink-tag">{selected.adSlot}</span></div>
               <div><strong>分组规则：</strong>{selected.rules.length ? selected.rules.map((rule, index) => <span className="rule-tag" key={`${rule.dimension}-${index}`}>{rule.dimension}({rule.operator}): {rule.value}</span>) : <span className="muted">默认流量，无附加规则</span>}</div>
-              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <button type="button" className="primary push-right" onClick={() => setExperimentPage(selectedExperiment ? "detail" : "create")}>{selectedExperiment ? "查看实验" : "新增实验"}</button> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
+              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <div className="experiment-entry-actions push-right">{!selectedExperiment ? <button type="button" className="primary" onClick={() => setExperimentPage("create")}>新增实验</button> : selectedExperiment.status === "draft" ? <><button type="button" className="secondary" onClick={startSelectedExperiment}>开启实验</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>编辑实验配置</button></> : <><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("A")}>全量A</button><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("B")}>全量B</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>查看实验配置</button></>}</div> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
             </div>
 
             <div className="pid-toolbar">
@@ -650,6 +663,11 @@ export default function Home() {
           </div>
           <div className="modal-actions"><button type="button" className="secondary" onClick={() => setModal(null)}>取消</button><button className="primary" type="submit">确认执行</button></div>
         </form>
+      </Modal>}
+
+      {pendingExperimentAllocation && selected && selectedExperiment && <Modal title="流量全量切换" onClose={() => setPendingExperimentAllocation(null)}>
+        <div className="delete-confirm-body"><span className="disable-warning" aria-hidden="true">!</span><div><h3>确认将“{selected.name}”的全部流量给到{pendingExperimentAllocation}组吗？</h3><p>确认后，{pendingExperimentAllocation}组流量将变为 100%，{pendingExperimentAllocation === "A" ? "B" : "A"}组流量变为 0%，并按照{pendingExperimentAllocation}组配置进行推全。</p></div></div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation(null)}>取消</button><button type="button" className="primary" onClick={confirmExperimentAllocation}>确认执行</button></div>
       </Modal>}
 
       {toast && <div className="toast" role="status">✓ {toast}</div>}

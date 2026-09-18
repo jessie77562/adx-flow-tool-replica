@@ -470,6 +470,7 @@ tr:last-child td { border-bottom: 0; }
 .experiment-status.compact { padding: 3px 9px; font-size: 12px; }
 .experiment-ratio-summary { color: #767b83; font-size: 13px; }
 .experiment-unavailable { color: #a0a4aa; font-size: 13px; }
+.experiment-entry-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .experiment-section { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 4px; background: white; }
 .experiment-section > h2, .experiment-table-heading h2, .experiment-actions h2 { margin: 0 0 22px; color: var(--pink); font-size: 16px; }
 .experiment-form-grid { max-width: 1120px; display: grid; gap: 18px; }
@@ -539,6 +540,7 @@ tr:last-child td { border-bottom: 0; }
   .filters { margin-bottom: 26px; flex-wrap: wrap; }
   .controls { align-items: flex-start; flex-wrap: wrap; }
   .push-right { margin-left: 0; }
+  .experiment-entry-actions { justify-content: flex-start; }
   .field { grid-template-columns: 1fr; gap: 5px; }
   .field > span { text-align: left; }
   .field-error { margin-left: 0; }
