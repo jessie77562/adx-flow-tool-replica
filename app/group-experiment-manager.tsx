@@ -72,11 +72,11 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
       aTraffic,
       bTraffic,
       allocation: aTraffic === 100 ? "allA" : bTraffic === 100 ? "allB" : "split",
-      copyAtoB,
+      copyAtoB: isRunning ? false : copyAtoB,
       createdAt: experiment?.createdAt ?? null,
       updatedAt: now,
       aConfig: cloneConfigs(aConfig),
-      bConfig: copyAtoB ? cloneConfigs(aConfig) : cloneConfigs(bConfig),
+      bConfig: isRunning ? cloneConfigs(bConfig) : copyAtoB ? cloneConfigs(aConfig) : cloneConfigs(bConfig),
     };
   };
 
@@ -103,6 +103,15 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
     onNotify("实验基础信息已保存");
   };
 
+  const saveRunningConfig = (groupName: "A" | "B", configs: ExperimentDspConfig[]) => {
+    if (groupName === "A") setAConfig(configs);
+    else setBConfig(configs);
+    if (!isRunning) return;
+    const nextAConfig = groupName === "A" ? configs : aConfig;
+    const nextBConfig = groupName === "B" ? configs : bConfig;
+    onChange({ ...buildRecord("running"), copyAtoB: false, aConfig: cloneConfigs(nextAConfig), bConfig: cloneConfigs(nextBConfig) });
+  };
+
   return <section className="panel experiment-page">
     <div className="experiment-page-heading"><div><button type="button" className="back-link" onClick={onBack}>‹ 返回流量分组管理</button><h1>{isCreate ? "创建A/B测试" : isDraft ? "编辑实验配置" : "查看实验配置"}</h1></div>{experiment && <span className={`experiment-status ${experiment.status}`}>{experiment.status === "running" ? "开启中" : "待开启"}</span>}</div>
 
@@ -115,7 +124,7 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
       {!isCreate && <><div className="experiment-info-row"><span>实验创建时间</span><strong>{experiment.createdAt ?? "尚未开启"}</strong></div><div className="experiment-info-row"><span>数据统计周期</span><strong>{experiment.createdAt ? `${experiment.createdAt} ~ 至今` : "开启测试后开始统计"}</strong></div></>}
     </div></section>
 
-    {!isRunning && <section className="experiment-section"><h2>实验配置</h2><div className="experiment-tabs"><button type="button" className={activeConfig === "A" ? "active" : ""} onClick={() => setActiveConfig("A")}>对照组(A)</button><button type="button" className={activeConfig === "B" ? "active" : ""} onClick={() => setActiveConfig("B")}>实验组(B)</button></div>{activeConfig === "A" ? <ExperimentConfigTable title="A组已启用DSP来源" configs={aConfig} onChange={setAConfig} onNotify={onNotify} /> : copyAtoB ? <ExperimentConfigTable title="B组配置（同步A组）" configs={aConfig} onChange={setAConfig} allowBatchFloor onNotify={onNotify} /> : <ExperimentConfigTable title="B组已启用DSP来源" configs={bConfig} onChange={setBConfig} allowBatchFloor onNotify={onNotify} />}</section>}
+    <section className="experiment-section"><h2>实验配置</h2><div className="experiment-tabs"><button type="button" className={activeConfig === "A" ? "active" : ""} onClick={() => setActiveConfig("A")}>对照组(A)</button><button type="button" className={activeConfig === "B" ? "active" : ""} onClick={() => setActiveConfig("B")}>实验组(B)</button></div>{activeConfig === "A" ? <ExperimentConfigTable title="A组已启用DSP来源" configs={aConfig} onChange={(configs) => saveRunningConfig("A", configs)} onNotify={onNotify} /> : copyAtoB && !isRunning ? <ExperimentConfigTable title="B组配置（同步A组）" configs={aConfig} onChange={(configs) => saveRunningConfig("A", configs)} allowBatchFloor onNotify={onNotify} /> : <ExperimentConfigTable title="B组已启用DSP来源" configs={bConfig} onChange={(configs) => saveRunningConfig("B", configs)} allowBatchFloor onNotify={onNotify} />}</section>
 
     {!isRunning && <div className="experiment-page-actions"><button type="button" className="secondary" onClick={onBack}>取消</button><button type="button" className="primary" onClick={saveExperiment}>保存实验</button></div>}
   </section>;

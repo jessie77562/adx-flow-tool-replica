@@ -136,6 +136,7 @@ test("keeps the restored interactions in the client surface", async () => {
     "查看实验配置",
     "保存实验",
     "saveRunningBasicInfo",
+    "saveRunningConfig",
     "实验基础信息已保存",
     "实验已保存，状态为待开启",
     "A/B测试已开启",
