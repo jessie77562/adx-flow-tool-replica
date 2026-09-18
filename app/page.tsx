@@ -156,6 +156,7 @@ export default function Home() {
   const [experiments, setExperiments] = useState<GroupExperiment[]>(initialExperiments);
   const [experimentPage, setExperimentPage] = useState<"create" | "detail" | null>(null);
   const [pendingExperimentAllocation, setPendingExperimentAllocation] = useState<"A" | "B" | null>(null);
+  const [viewingExperimentGroup, setViewingExperimentGroup] = useState<"A" | "B">("A");
   const [scene, setScene] = useState("开屏");
   const [platform, setPlatform] = useState("IOS");
   const [showEffectiveOnly, setShowEffectiveOnly] = useState(true);
@@ -227,6 +228,7 @@ export default function Home() {
 
   const selectGroup = (id: number) => {
     setSelectedId(id);
+    setViewingExperimentGroup("A");
     setOpenMenu(null);
     resetPidSelection();
   };
@@ -249,7 +251,15 @@ export default function Home() {
     resetPidSelection();
   };
 
-  const groupDsps = dsps.filter((dsp) => dsp.groupId === selected?.id);
+  const groupDsps: Dsp[] = selectedExperiment?.status === "running" && selected
+    ? (viewingExperimentGroup === "A" ? selectedExperiment.aConfig : selectedExperiment.bConfig).map((config) => {
+      const source = dsps.find((dsp) => dsp.id === config.id);
+      return source ? { ...source, ...config, groupId: selected.id } : {
+        id: config.id, groupId: selected.id, name: config.name, enabled: config.enabled, floor: config.floor, pids: [...config.pids], minVersion: "", maxVersion: "", size: "全尺寸",
+        revenue: 0, ecpm: 0, requestValue: 0, requests: 0, returns: 0, bidWins: 0, impressions: 0, ctr: 0, cpc: 0,
+      };
+    })
+    : dsps.filter((dsp) => dsp.groupId === selected?.id);
   const enabledDsps = groupDsps.filter((dsp) => dsp.enabled);
   const disabledDsps = groupDsps.filter((dsp) => !dsp.enabled);
   const visibleDsps = showDisabled ? [...enabledDsps, ...disabledDsps] : enabledDsps;
@@ -576,6 +586,7 @@ export default function Home() {
                 <button type="button" className="secondary" disabled={!selectedPidCount} onClick={openBatchModal}>批量操作</button>
               </div>
             </div>
+            {selectedExperiment?.status === "running" && <div className="experiment-config-switch" aria-label="实验组配置切换"><div><strong>实验组配置</strong><span>当前展示：{viewingExperimentGroup === "A" ? `A 对照组（${selectedExperiment.aTraffic}%）` : `B 实验组（${selectedExperiment.bTraffic}%）`}</span></div><div className="experiment-tabs"><button type="button" className={viewingExperimentGroup === "A" ? "active" : ""} onClick={() => { setViewingExperimentGroup("A"); resetPidSelection(); }}>A 对照组配置</button><button type="button" className={viewingExperimentGroup === "B" ? "active" : ""} onClick={() => { setViewingExperimentGroup("B"); resetPidSelection(); }}>B 实验组配置</button></div></div>}
             <div className="table-wrap">
               <table>
                 <thead><tr><th className="selection-cell"><input type="checkbox" aria-label="选择当前显示的全部PID" checked={allVisibleSelected} onChange={toggleVisibleDsps} /></th>{["操作", "DSP来源", "状态", "底价", "预估收入", "eCPM", "千次请求价格", "请求量", "返回量", "返回率", "竞价成功数", "竞价成功率", "展示量", "竞胜展示率", "点击率", "CPC"].map((heading, index) => <th key={heading}>{heading}{index > 2 && index !== 10 && <span className="help" title={`${heading}指标说明`}>?</span>}</th>)}</tr></thead>
