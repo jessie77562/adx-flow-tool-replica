@@ -53,6 +53,7 @@ test("keeps the restored interactions in the client surface", async () => {
     "patchDsp",
     "localStorage",
     "查看实验配置",
+    "experiment-list-status",
     "实验组配置切换",
     "当前展示：",
     "A 对照组配置",

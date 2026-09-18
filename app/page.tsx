@@ -561,13 +561,14 @@ export default function Home() {
 
           <div className="group-list-area">
             <div id="group-list" className={`groups ${groupListExpanded ? "expanded" : "collapsed"}`} aria-label="分组列表">
-              {visibleGroups.length ? visibleGroups.map((group) => (
-                <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
-                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span><small className="group-priority-tag">优先级 {group.priority}</small>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
+              {visibleGroups.length ? visibleGroups.map((group) => {
+                const groupExperiment = experiments.find((experiment) => experiment.groupId === group.id);
+                return <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
+                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span><small className="group-priority-tag">优先级 {group.priority}</small>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? groupExperiment ? <small className={`experiment-list-status ${groupExperiment.status}`}>{groupExperiment.status === "running" ? "开启中" : "待开启"}</small> : <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
                   <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setGroupListExpanded(true); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
                   {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button>{!group.enabled && !group.isDefault && <button type="button" className="danger" onClick={() => openDeleteGroupConfirmation(group)}>删除分组</button>}</div>}
                 </div>
-              )) : <div className="empty">{showEffectiveOnly ? "当前场景与平台暂无生效中的分组。" : "当前场景与平台暂无分组，点击“添加分组”新建。"}</div>}
+              }) : <div className="empty">{showEffectiveOnly ? "当前场景与平台暂无生效中的分组。" : "当前场景与平台暂无分组，点击“添加分组”新建。"}</div>}
             </div>
             {visibleGroups.length > 2 && <button type="button" className="group-list-toggle" aria-controls="group-list" aria-expanded={groupListExpanded} onClick={() => { setGroupListExpanded((value) => !value); setOpenMenu(null); }}><span>{groupListExpanded ? "⌃" : "⌄"}</span>{groupListExpanded ? "收起分组" : `展开全部分组（${visibleGroups.length}）`}</button>}
           </div>
