@@ -156,6 +156,7 @@ export default function Home() {
   const [experiments, setExperiments] = useState<GroupExperiment[]>(initialExperiments);
   const [experimentPage, setExperimentPage] = useState<"create" | "detail" | null>(null);
   const [pendingExperimentAllocation, setPendingExperimentAllocation] = useState<"A" | "B" | null>(null);
+  const [viewingExperimentGroup, setViewingExperimentGroup] = useState<"A" | "B">("A");
   const [scene, setScene] = useState("开屏");
   const [platform, setPlatform] = useState("IOS");
   const [showEffectiveOnly, setShowEffectiveOnly] = useState(true);
@@ -227,6 +228,7 @@ export default function Home() {
 
   const selectGroup = (id: number) => {
     setSelectedId(id);
+    setViewingExperimentGroup("A");
     setOpenMenu(null);
     resetPidSelection();
   };
@@ -249,7 +251,15 @@ export default function Home() {
     resetPidSelection();
   };
 
-  const groupDsps = dsps.filter((dsp) => dsp.groupId === selected?.id);
+  const groupDsps: Dsp[] = selectedExperiment?.status === "running" && selected
+    ? (viewingExperimentGroup === "A" ? selectedExperiment.aConfig : selectedExperiment.bConfig).map((config) => {
+      const source = dsps.find((dsp) => dsp.id === config.id);
+      return source ? { ...source, ...config, groupId: selected.id } : {
+        id: config.id, groupId: selected.id, name: config.name, enabled: config.enabled, floor: config.floor, pids: [...config.pids], minVersion: "", maxVersion: "", size: "全尺寸",
+        revenue: 0, ecpm: 0, requestValue: 0, requests: 0, returns: 0, bidWins: 0, impressions: 0, ctr: 0, cpc: 0,
+      };
+    })
+    : dsps.filter((dsp) => dsp.groupId === selected?.id);
   const enabledDsps = groupDsps.filter((dsp) => dsp.enabled);
   const disabledDsps = groupDsps.filter((dsp) => !dsp.enabled);
   const visibleDsps = showDisabled ? [...enabledDsps, ...disabledDsps] : enabledDsps;
@@ -568,6 +578,8 @@ export default function Home() {
               <div><strong>分组规则：</strong>{selected.rules.length ? selected.rules.map((rule, index) => <span className="rule-tag" key={`${rule.dimension}-${index}`}>{rule.dimension}({rule.operator}): {rule.value}</span>) : <span className="muted">默认流量，无附加规则</span>}</div>
               <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <div className="experiment-entry-actions push-right">{!selectedExperiment ? <button type="button" className="primary" onClick={() => setExperimentPage("create")}>新增实验</button> : selectedExperiment.status === "draft" ? <><button type="button" className="secondary" onClick={startSelectedExperiment}>开启实验</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>编辑实验配置</button></> : <><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("A")}>全量A</button><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("B")}>全量B</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>查看实验配置</button></>}</div> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
             </div>
+
+            {selectedExperiment?.status === "running" && <div className="ab-data-switch" aria-label="实验组数据切换"><div><strong>实验组数据</strong><span>当前查看：{viewingExperimentGroup === "A" ? `A 对照组（${selectedExperiment.aTraffic}%）` : `B 实验组（${selectedExperiment.bTraffic}%）`}</span></div><div className="experiment-tabs"><button type="button" className={viewingExperimentGroup === "A" ? "active" : ""} onClick={() => { setViewingExperimentGroup("A"); resetPidSelection(); }}>A 对照组</button><button type="button" className={viewingExperimentGroup === "B" ? "active" : ""} onClick={() => { setViewingExperimentGroup("B"); resetPidSelection(); }}>B 实验组</button></div></div>}
 
             <div className="pid-toolbar">
               <button type="button" className="primary" onClick={() => openDspModal()}>＋ 添加PID</button>
