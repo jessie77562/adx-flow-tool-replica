@@ -258,7 +258,9 @@ tr:last-child td { border-bottom: 0; }
 .ab-list-page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .ab-list-page-heading h1 { margin: 0; }
 .ab-list-page-heading p { margin: 8px 0 0; color: #858a92; }
-.ab-list-search { width: min(340px, 100%); }
+.ab-list-filters { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+.ab-list-filters label { display: grid; gap: 5px; color: #737982; font-size: 12px; }
+.ab-list-search { width: 180px; }
 .ab-detail-page-heading { display: grid; gap: 12px; }
 .ab-detail-page-heading > div { display: flex; align-items: baseline; gap: 12px; }
 .ab-detail-page-heading h1 { margin: 0; }
