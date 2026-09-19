@@ -84,6 +84,8 @@ test("keeps the restored interactions in the client surface", async () => {
     "综合报表",
     "ReportManager",
     "adSources",
+    "exclusiveDimensionFilters",
+    "singleSelect",
     "metricDefinitions",
     "指标释义",
     "计算公式",
