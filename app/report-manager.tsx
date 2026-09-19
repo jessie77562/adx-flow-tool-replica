@@ -18,7 +18,7 @@ import { PID_DSP_SOURCES } from "./pid-management";
 
 type ReportGroup = { id: number; name: string; scene: string; platform: string; adSlot: string; isDefault?: boolean };
 type ReportManagerProps = { groups: ReportGroup[]; onNotify: (message: string) => void };
-type MetricDefinition = { label: string; description: string; formula?: string; freshness: "T+1" | "实时" };
+type MetricDefinition = { label: string; description: string; formula?: string; freshness: "T+1" };
 
 const metricOptions: { key: ReportMetricKey; label: string; type: "money" | "number" | "percent" | "decimal" }[] = [
   { key: "revenuePerThousandUsers", label: "千人均收益", type: "decimal" },
@@ -39,20 +39,20 @@ const adSourceOptions = Array.from(new Set([...PID_DSP_SOURCES, "百度联盟"])
 const metricDefinitions: MetricDefinition[] = [
   { label: "千人均收益", description: "每千个活跃用户带来的广告收入，用于衡量用户整体变现效率。", formula: "预估收入 ÷ 用户数 × 1000", freshness: "T+1" },
   { label: "DAU", description: "统计日期内使用应用的去重活跃用户数。", formula: "当日活跃用户去重数", freshness: "T+1" },
-  { label: "预估收入", description: "当前统计日期内，各广告来源产生的预估广告收入之和。", formula: "各广告来源预估收入之和", freshness: "实时" },
-  { label: "eCPM", description: "每一千次有效广告展示带来的预估收入。", formula: "预估收入 ÷ 展示量 × 1000", freshness: "实时" },
-  { label: "千次请求价值", description: "每一千次进入 ADX 的广告请求带来的预估收入。", formula: "预估收入 ÷ 请求量 × 1000", freshness: "实时" },
-  { label: "请求量", description: "ADX 接收到的广告请求数。一次入口请求即使同时请求多个广告渠道，也只计为一次请求。", freshness: "实时" },
-  { label: "返回率", description: "广告请求中成功返回广告结果的比例。", formula: "广告返回数 ÷ 请求量 × 100%", freshness: "实时" },
-  { label: "竞价成功数", description: "参与竞价后获得竞价成功结果的次数。", freshness: "实时" },
-  { label: "竞价成功率", description: "有广告返回的请求中，最终竞价成功的比例。", formula: "竞价成功数 ÷ 广告返回数 × 100%", freshness: "实时" },
-  { label: "展示量", description: "广告素材在用户端完成实际展示的次数。", freshness: "实时" },
-  { label: "竞胜展示率", description: "竞价成功后最终完成广告展示的比例。", formula: "展示量 ÷ 竞价成功数 × 100%", freshness: "实时" },
-  { label: "点击数", description: "用户点击已展示广告的总次数。", freshness: "实时" },
-  { label: "点击率", description: "广告展示后被用户点击的比例。", formula: "点击数 ÷ 展示量 × 100%", freshness: "实时" },
-  { label: "cpc", description: "平均每次广告点击对应的预估收入。", formula: "预估收入 ÷ 点击数", freshness: "实时" },
-  { label: "效果广告请求人数", description: "统计日期内发起过效果广告请求的去重用户数，即请求 UV。", freshness: "实时" },
-  { label: "效果广告千人均收益", description: "每千个发起效果广告请求的用户带来的预估收入。", formula: "预估收入 ÷ 效果广告请求人数 × 1000", freshness: "实时" },
+  { label: "预估收入", description: "当前统计日期内，各广告来源产生的预估广告收入之和。", formula: "各广告来源预估收入之和", freshness: "T+1" },
+  { label: "eCPM", description: "每一千次有效广告展示带来的预估收入。", formula: "预估收入 ÷ 展示量 × 1000", freshness: "T+1" },
+  { label: "千次请求价值", description: "每一千次进入 ADX 的广告请求带来的预估收入。", formula: "预估收入 ÷ 请求量 × 1000", freshness: "T+1" },
+  { label: "请求量", description: "ADX 接收到的广告请求数。一次入口请求即使同时请求多个广告渠道，也只计为一次请求。", freshness: "T+1" },
+  { label: "返回率", description: "广告请求中成功返回广告结果的比例。", formula: "广告返回数 ÷ 请求量 × 100%", freshness: "T+1" },
+  { label: "竞价成功数", description: "参与竞价后获得竞价成功结果的次数。", freshness: "T+1" },
+  { label: "竞价成功率", description: "有广告返回的请求中，最终竞价成功的比例。", formula: "竞价成功数 ÷ 广告返回数 × 100%", freshness: "T+1" },
+  { label: "展示量", description: "广告素材在用户端完成实际展示的次数。", freshness: "T+1" },
+  { label: "竞胜展示率", description: "竞价成功后最终完成广告展示的比例。", formula: "展示量 ÷ 竞价成功数 × 100%", freshness: "T+1" },
+  { label: "点击数", description: "用户点击已展示广告的总次数。", freshness: "T+1" },
+  { label: "点击率", description: "广告展示后被用户点击的比例。", formula: "点击数 ÷ 展示量 × 100%", freshness: "T+1" },
+  { label: "cpc", description: "平均每次广告点击对应的预估收入。", formula: "预估收入 ÷ 点击数", freshness: "T+1" },
+  { label: "效果广告请求人数", description: "统计日期内发起过效果广告请求的去重用户数，即请求 UV。", freshness: "T+1" },
+  { label: "效果广告千人均收益", description: "每千个发起效果广告请求的用户带来的预估收入。", formula: "预估收入 ÷ 效果广告请求人数 × 1000", freshness: "T+1" },
 ];
 
 function createDefaultFilters(): ReportFilters {
@@ -229,7 +229,7 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
         </svg>
         {hoveredIndex !== null && points[hoveredIndex] && <div className="chart-tooltip" style={{ left: `${points[hoveredIndex].x / plot.width * 100}%`, top: `${points[hoveredIndex].y / plot.height * 100}%` }}><strong>{points[hoveredIndex].row.date}</strong><span>{selectedMetric.label}：{formatMetric(getMetricValue(points[hoveredIndex].row, metric), selectedMetric.type)}</span></div>}
       </div> : <div className="report-empty">暂无数据</div>}
-      <div className="chart-footer"><span>数据按 T+1 或准实时口径展示</span><button type="button" className="secondary" onClick={exportReport}>导出</button></div>
+      <div className="chart-footer"><span>数据按 T+1 口径展示</span><button type="button" className="secondary" onClick={exportReport}>导出</button></div>
     </div>
 
     <div className="report-detail-heading"><div><h2>数据明细</h2><span>共 {rows.length} 天</span></div><label className="report-sort-control">时间排序<select aria-label="数据明细时间排序" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as ReportSortOrder)}><option value="asc">日期升序</option><option value="desc">日期降序</option></select></label></div>
