@@ -88,7 +88,8 @@ function filterMultiplier(filters: ReportFilters): number {
 }
 
 export function supportsRevenuePerThousandUsers(filters: ReportFilters): boolean {
-  return filters.adSlots.length <= 1
+  return (filters.adSlots.length + filters.platforms.length + filters.groupIds.length) > 0
+    && filters.adSlots.length <= 1
     && filters.platforms.length <= 1
     && filters.groupIds.length <= 1
     && filters.adSources.length === 0;

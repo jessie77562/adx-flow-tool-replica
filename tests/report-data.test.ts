@@ -34,7 +34,10 @@ test("supports selecting multiple ad sources", () => {
 });
 
 test("shows revenue per thousand users only for eligible filter combinations", () => {
-  assert.equal(supportsRevenuePerThousandUsers(filters), true);
+  assert.equal(supportsRevenuePerThousandUsers(filters), false);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, adSlots: ["开屏"] }), true);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, platforms: ["IOS"] }), true);
+  assert.equal(supportsRevenuePerThousandUsers({ ...filters, groupIds: ["211"] }), true);
   assert.equal(supportsRevenuePerThousandUsers({ ...filters, adSlots: ["开屏", "插屏"] }), false);
   assert.equal(supportsRevenuePerThousandUsers({ ...filters, platforms: ["IOS", "Android"] }), false);
   assert.equal(supportsRevenuePerThousandUsers({ ...filters, groupIds: ["211", "301"] }), false);
