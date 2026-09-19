@@ -74,9 +74,8 @@ input:disabled { background: #f5f5f5; color: #888; }
 .group-select em { padding: 1px 3px; border: 1px solid #f1b0c6; background: #fff7fa; color: #dc5c88; font-size: 11px; font-style: normal; }
 .group-select small { padding: 2px 5px; border: 1px solid #e2e3e5; background: #fafafa; color: #777; white-space: nowrap; }
 .group-select small.group-priority-tag { border-color: #efbfd4; background: #fff8fb; color: #d9578e; font-weight: 600; }
-.group-select small.effective-tag { border-color: #b7e2cb; background: #f1fbf6; color: #2f9a68; }
-.group-select small.experiment-list-status.running { border-color: #b7e2cb; background: #f1fbf6; color: #2f9a68; }
-.group-select small.experiment-list-status.draft { border-color: #f1d39c; background: #fff8ed; color: #c78321; }
+.group-select small.group-status-tag.enabled { border-color: #b7e2cb; background: #f1fbf6; color: #2f9a68; }
+.group-select small.group-status-tag.disabled { border-color: #e2e3e5; background: #f5f5f5; color: #858a91; }
 .group-more { width: 22px; padding: 0; color: #a5a9ae; font-size: 19px; }
 .group-menu { position: absolute; z-index: 7; top: 38px; right: 0; min-width: 108px; padding: 5px 0; border: 1px solid #e1e2e5; border-radius: 3px; background: white; box-shadow: 0 4px 14px rgb(0 0 0 / 12%); }
 .group-menu button { width: 100%; height: 34px; border: 0; background: white; text-align: left; padding: 0 14px; }

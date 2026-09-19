@@ -562,9 +562,9 @@ export default function Home() {
           <div className="group-list-area">
             <div id="group-list" className={`groups ${groupListExpanded ? "expanded" : "collapsed"}`} aria-label="分组列表">
               {visibleGroups.length ? visibleGroups.map((group) => {
-                const groupExperiment = experiments.find((experiment) => experiment.groupId === group.id);
+                const isGroupEnabled = group.enabled || group.isDefault;
                 return <div className={`group-item ${group.id === selected?.id ? "selected" : ""}`} key={group.id}>
-                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><span>{group.name}</span><small className="group-priority-tag">优先级 {group.priority}</small>{group.ab && <em>AB</em>}{group.enabled || group.isDefault ? groupExperiment ? <small className={`experiment-list-status ${groupExperiment.status}`}>{groupExperiment.status === "running" ? "开启中" : "待开启"}</small> : <small className="effective-tag">生效中</small> : <small>已关闭</small>}</button>
+                  <button type="button" className="group-select" onClick={() => selectGroup(group.id)}><small className={`group-status-tag ${isGroupEnabled ? "enabled" : "disabled"}`}>{isGroupEnabled ? "开启" : "关闭"}</small><span>{group.name}</span><small className="group-priority-tag">优先级 {group.priority}</small>{group.ab && <em>AB</em>}</button>
                   <button type="button" className="group-more" aria-label={`${group.name}更多操作`} onClick={(event) => { event.stopPropagation(); setGroupListExpanded(true); setOpenMenu(openMenu === group.id ? null : group.id); }}>⋮</button>
                   {openMenu === group.id && <div className="group-menu"><button type="button" onClick={() => openGroupModal(group)}>编辑分组</button><button type="button" onClick={() => copyGroup(group)}>复制</button>{!group.enabled && !group.isDefault && <button type="button" className="danger" onClick={() => openDeleteGroupConfirmation(group)}>删除分组</button>}</div>}
                 </div>
