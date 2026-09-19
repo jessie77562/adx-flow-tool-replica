@@ -209,9 +209,9 @@ export default function ReportManager({ groups, onNotify }: ReportManagerProps) 
     <h1>综合报表</h1>
     <form ref={reportFiltersRef} className="report-filters" onSubmit={submitQuery}>
       <div className="report-date-field"><span><b>*</b>日期</span><div className="date-range-inputs"><input type="date" aria-label="开始日期" value={filters.startDate} onChange={(event) => setFilters({ ...filters, startDate: event.target.value })} /><span>至</span><input type="date" aria-label="结束日期" value={filters.endDate} onChange={(event) => setFilters({ ...filters, endDate: event.target.value })} /></div>{dateError && <small className="report-filter-error">{dateError}</small>}</div>
+      <MultiSelectField label="分组" values={filters.groupIds} options={groupOptions} onToggle={(value) => toggleMultiFilter("groupIds", value)} onClear={() => setFilters((current) => ({ ...current, groupIds: [] }))} />
       <MultiSelectField label="广告位" values={filters.adSlots} options={adSlotOptions} onToggle={(value) => toggleMultiFilter("adSlots", value)} onClear={() => setFilters((current) => ({ ...current, adSlots: [] }))} />
       <MultiSelectField label="平台" values={filters.platforms} options={platformOptions} onToggle={(value) => toggleMultiFilter("platforms", value)} onClear={() => setFilters((current) => ({ ...current, platforms: [] }))} />
-      <MultiSelectField label="分组" values={filters.groupIds} options={groupOptions} onToggle={(value) => toggleMultiFilter("groupIds", value)} onClear={() => setFilters((current) => ({ ...current, groupIds: [] }))} />
       <label>应用<select value={filters.app} onChange={(event) => setFilters({ ...filters, app: event.target.value })}><option value="">全部</option><option>美柚</option></select></label>
       <MultiSelectField label="广告来源" values={filters.adSources} options={sourceOptions} onToggle={(value) => toggleMultiFilter("adSources", value)} onClear={() => setFilters((current) => ({ ...current, adSources: [] }))} />
       <div className="report-filter-actions"><button type="submit" className="primary">查询</button><button type="button" className="secondary" onClick={reset}>重置</button></div>
