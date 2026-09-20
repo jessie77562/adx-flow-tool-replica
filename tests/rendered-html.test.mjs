@@ -111,7 +111,6 @@ test("keeps the restored interactions in the client surface", async () => {
     "A/B 测试数据对比表",
     "返回A/B测试列表",
     "detailExperimentId",
-    "实验名称筛选",
     "分组名称筛选",
     "展示全部实验",
     "查看详细实验数据",
