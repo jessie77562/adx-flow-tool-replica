@@ -155,6 +155,7 @@ export default function Home() {
   const [dsps, setDsps] = useState<Dsp[]>(initialDsps);
   const [experiments, setExperiments] = useState<GroupExperiment[]>(initialExperiments);
   const [experimentPage, setExperimentPage] = useState<"create" | "detail" | null>(null);
+  const [pendingExperimentStart, setPendingExperimentStart] = useState(false);
   const [pendingExperimentAllocation, setPendingExperimentAllocation] = useState<"A" | "B" | null>(null);
   const [viewingExperimentGroup, setViewingExperimentGroup] = useState<"A" | "B">("A");
   const [scene, setScene] = useState("开屏");
@@ -284,6 +285,7 @@ export default function Home() {
     if (!selectedExperiment) return;
     applyExperiment(startExperiment(selectedExperiment));
     notify("A/B测试已开启");
+    setPendingExperimentStart(false);
   };
   const confirmExperimentAllocation = () => {
     if (!selectedExperiment || !pendingExperimentAllocation) return;
@@ -577,7 +579,7 @@ export default function Home() {
             <div className="group-detail">
               <div><strong>广告位：</strong><span className="pink-tag">{selected.adSlot}</span></div>
               <div><strong>分组规则：</strong>{selected.rules.length ? selected.rules.map((rule, index) => <span className="rule-tag" key={`${rule.dimension}-${index}`}>{rule.dimension}({rule.operator}): {rule.value}</span>) : <span className="muted">默认流量，无附加规则</span>}</div>
-              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <div className="experiment-entry-actions push-right">{!selectedExperiment ? <button type="button" className="primary" onClick={() => setExperimentPage("create")}>新增实验</button> : selectedExperiment.status === "draft" ? <><button type="button" className="secondary" onClick={startSelectedExperiment}>开启实验</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>编辑实验配置</button></> : <><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("A")}>全量A</button><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("B")}>全量B</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>查看实验配置</button></>}</div> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
+              <div className="controls"><strong>分组开关</strong><Toggle checked={selected.isDefault ? true : selected.enabled} disabled={Boolean(selected.isDefault)} label={selected.isDefault ? "默认分组始终启用" : "分组开关"} onChange={requestSelectedGroupStatusChange} />{selected.isDefault && <span className="default-hint">默认分组始终启用</span>}<i /><strong>实验管理</strong>{selectedExperiment && <><span className={`experiment-status compact ${selectedExperiment.status}`}>{selectedExperiment.status === "running" ? "开启中" : "待开启"}</span><span className="experiment-ratio-summary">A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}%</span></>}{selected.enabled || selected.isDefault ? <div className="experiment-entry-actions push-right">{!selectedExperiment ? <button type="button" className="primary" onClick={() => setExperimentPage("create")}>新增实验</button> : selectedExperiment.status === "draft" ? <><button type="button" className="secondary" onClick={() => setPendingExperimentStart(true)}>开启实验</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>编辑实验配置</button></> : <><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("A")}>全量A</button><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation("B")}>全量B</button><button type="button" className="primary" onClick={() => setExperimentPage("detail")}>查看实验配置</button></>}</div> : <span className="experiment-unavailable push-right">启用分组后可管理实验</span>}</div>
             </div>
 
             <div className="pid-toolbar">
@@ -680,6 +682,11 @@ export default function Home() {
       {pendingExperimentAllocation && selected && selectedExperiment && <Modal title="流量全量切换" onClose={() => setPendingExperimentAllocation(null)}>
         <div className="delete-confirm-body"><span className="disable-warning" aria-hidden="true">!</span><div><h3>确认将“{selected.name}”的全部流量给到{pendingExperimentAllocation}组吗？</h3><p>确认后，{pendingExperimentAllocation}组流量将变为 100%，{pendingExperimentAllocation === "A" ? "B" : "A"}组流量变为 0%，并按照{pendingExperimentAllocation}组配置进行推全。</p></div></div>
         <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPendingExperimentAllocation(null)}>取消</button><button type="button" className="primary" onClick={confirmExperimentAllocation}>确认执行</button></div>
+      </Modal>}
+
+      {pendingExperimentStart && selected && selectedExperiment && <Modal title="确认开启实验" onClose={() => setPendingExperimentStart(false)}>
+        <div className="delete-confirm-body"><span className="disable-warning" aria-hidden="true">!</span><div><h3>确认开启“{selectedExperiment.testName}”吗？</h3><p>确认后，实验将按 A {selectedExperiment.aTraffic}% / B {selectedExperiment.bTraffic}% 的比例开始分流，并开始统计实验数据。</p></div></div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={() => setPendingExperimentStart(false)}>取消</button><button type="button" className="primary" onClick={startSelectedExperiment}>确认开启</button></div>
       </Modal>}
 
       {toast && <div className="toast" role="status">✓ {toast}</div>}

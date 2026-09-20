@@ -62,6 +62,7 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
   const [aConfig, setAConfig] = useState(initialA);
   const [bConfig, setBConfig] = useState(initialB);
   const [error, setError] = useState("");
+  const [pendingTrafficConfirmation, setPendingTrafficConfirmation] = useState<"save" | "running" | null>(null);
 
   const buildRecord = (status = experiment?.status ?? "draft"): GroupExperiment => {
     const now = formatExperimentTime();
@@ -80,12 +81,21 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
     };
   };
 
-  const saveExperiment = () => {
+  const persistExperiment = () => {
     const validation = validateExperiment(testName, aTraffic, bTraffic);
     if (validation) return setError(validation);
     onChange(buildRecord("draft"));
     onNotify(isCreate ? "实验已保存，状态为待开启" : "实验配置已保存");
     onBack();
+  };
+
+  const saveExperiment = () => {
+    const validation = validateExperiment(testName, aTraffic, bTraffic);
+    if (validation) return setError(validation);
+    const originalA = experiment?.aTraffic ?? 50;
+    const originalB = experiment?.bTraffic ?? 50;
+    if (aTraffic !== originalA || bTraffic !== originalB) return setPendingTrafficConfirmation("save");
+    persistExperiment();
   };
 
   const updateTraffic = (groupName: "A" | "B", value: number) => {
@@ -95,12 +105,36 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
     setError("");
   };
 
-  const saveRunningBasicInfo = () => {
-    if (!experiment || (testName.trim() === experiment.testName && aTraffic === experiment.aTraffic && bTraffic === experiment.bTraffic)) return;
+  const saveRunningTestName = () => {
+    if (!experiment || testName.trim() === experiment.testName) return;
     const validation = validateExperiment(testName, aTraffic, bTraffic);
     if (validation) return setError(validation);
-    onChange(buildRecord("running"));
-    onNotify("实验基础信息已保存");
+    onChange({ ...buildRecord("running"), aTraffic: experiment.aTraffic, bTraffic: experiment.bTraffic, allocation: experiment.allocation });
+    onNotify("测试名称已保存");
+  };
+
+  const requestRunningTrafficSave = () => {
+    if (!experiment || (aTraffic === experiment.aTraffic && bTraffic === experiment.bTraffic)) return;
+    const validation = validateExperiment(testName, aTraffic, bTraffic);
+    if (validation) return setError(validation);
+    setPendingTrafficConfirmation("running");
+  };
+
+  const confirmTrafficChange = () => {
+    if (pendingTrafficConfirmation === "save") persistExperiment();
+    if (pendingTrafficConfirmation === "running") {
+      onChange(buildRecord("running"));
+      onNotify("实验流量比例已调整");
+    }
+    setPendingTrafficConfirmation(null);
+  };
+
+  const cancelTrafficChange = () => {
+    if (pendingTrafficConfirmation === "running" && experiment) {
+      setATraffic(experiment.aTraffic);
+      setBTraffic(experiment.bTraffic);
+    }
+    setPendingTrafficConfirmation(null);
   };
 
   const saveRunningConfig = (groupName: "A" | "B", configs: ExperimentDspConfig[]) => {
@@ -117,8 +151,8 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
 
     <section className="experiment-section"><h2>基础信息</h2><div className="experiment-form-grid">
       <label><span>分组名称</span><input disabled value={group.name} /></label>
-      <label><span><b>*</b>测试名称</span><div className="named-input"><input maxLength={30} placeholder="请输入测试名称" value={testName} onChange={(event) => { setTestName(event.target.value); setError(""); }} onBlur={isRunning ? saveRunningBasicInfo : undefined} /><small>{testName.length}/30</small></div></label>
-      <div className="experiment-ratio-field"><span><b>*</b>流量比例</span><div><strong className="group-dot a">A</strong><label>对照组<input type="number" min="0" max="100" value={aTraffic} onChange={(event) => updateTraffic("A", Number(event.target.value))} onBlur={isRunning ? saveRunningBasicInfo : undefined} />%</label><i>:</i><strong className="group-dot b">B</strong><label>实验组<input type="number" min="0" max="100" value={bTraffic} onChange={(event) => updateTraffic("B", Number(event.target.value))} onBlur={isRunning ? saveRunningBasicInfo : undefined} />%</label></div></div>
+      <label><span><b>*</b>测试名称</span><div className="named-input"><input maxLength={30} placeholder="请输入测试名称" value={testName} onChange={(event) => { setTestName(event.target.value); setError(""); }} onBlur={isRunning ? saveRunningTestName : undefined} /><small>{testName.length}/30</small></div></label>
+      <div className="experiment-ratio-field"><span><b>*</b>流量比例</span><div><strong className="group-dot a">A</strong><label>对照组<input type="number" min="0" max="100" value={aTraffic} onChange={(event) => updateTraffic("A", Number(event.target.value))} onBlur={isRunning ? requestRunningTrafficSave : undefined} />%</label><i>:</i><strong className="group-dot b">B</strong><label>实验组<input type="number" min="0" max="100" value={bTraffic} onChange={(event) => updateTraffic("B", Number(event.target.value))} onBlur={isRunning ? requestRunningTrafficSave : undefined} />%</label></div></div>
       {isCreate && <label className="experiment-copy"><span /><span><input type="checkbox" checked={copyAtoB} onChange={(event) => setCopyAtoB(event.target.checked)} />将A组配置复制给B组</span></label>}
       {error && <div className="experiment-error" role="alert">{error}</div>}
       {!isCreate && <><div className="experiment-info-row"><span>实验创建时间</span><strong>{experiment.createdAt ?? "尚未开启"}</strong></div><div className="experiment-info-row"><span>数据统计周期</span><strong>{experiment.createdAt ? `${experiment.createdAt} ~ 至今` : "开启测试后开始统计"}</strong></div></>}
@@ -127,5 +161,6 @@ export default function GroupExperimentManager({ group, dsps, experiment, onBack
     {!isRunning && <section className="experiment-section"><h2>实验配置</h2><div className="experiment-tabs"><button type="button" className={activeConfig === "A" ? "active" : ""} onClick={() => setActiveConfig("A")}>对照组(A)</button><button type="button" className={activeConfig === "B" ? "active" : ""} onClick={() => setActiveConfig("B")}>实验组(B)</button></div>{activeConfig === "A" ? <ExperimentConfigTable title="A组已启用DSP来源" configs={aConfig} onChange={(configs) => saveRunningConfig("A", configs)} onNotify={onNotify} /> : copyAtoB ? <ExperimentConfigTable title="B组配置（同步A组）" configs={aConfig} onChange={(configs) => saveRunningConfig("A", configs)} allowBatchFloor onNotify={onNotify} /> : <ExperimentConfigTable title="B组已启用DSP来源" configs={bConfig} onChange={(configs) => saveRunningConfig("B", configs)} allowBatchFloor onNotify={onNotify} />}</section>}
 
     {!isRunning && <div className="experiment-page-actions"><button type="button" className="secondary" onClick={onBack}>取消</button><button type="button" className="primary" onClick={saveExperiment}>保存实验</button></div>}
+    {pendingTrafficConfirmation && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && cancelTrafficChange()}><section className="modal" role="dialog" aria-modal="true" aria-label="确认调整实验流量"><header><h2>确认调整流量比例</h2><button type="button" aria-label="关闭确认调整流量比例" onClick={cancelTrafficChange}>×</button></header><div className="delete-confirm-body"><span className="disable-warning" aria-hidden="true">!</span><div><h3>确认调整 A/B 实验流量比例吗？</h3><p>确认后，A 对照组为 {aTraffic}%，B 实验组为 {bTraffic}% 并按新比例进行流量分配。</p></div></div><div className="modal-actions"><button type="button" className="secondary" onClick={cancelTrafficChange}>取消</button><button type="button" className="primary" onClick={confirmTrafficChange}>确认执行</button></div></section></div>}
   </section>;
 }
