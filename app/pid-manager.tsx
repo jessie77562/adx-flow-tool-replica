@@ -117,13 +117,6 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
     setPage(1);
   };
 
-  const openCreate = () => {
-    setEditingId(null);
-    setDraft(emptyDraft());
-    setErrors({});
-    setShowForm(true);
-  };
-
   const openEdit = (record: PidRecord) => {
     setEditingId(record.id);
     setDraft({ dspSource: record.dspSource, scene: record.scene, platform: record.platform, adSlot: record.adSlot, pid: record.pid, appVersion: record.appVersion, enabled: record.enabled });
@@ -179,7 +172,7 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
       <div className="pid-filter-actions"><button type="submit" className="primary">查询</button><button type="button" className="secondary" onClick={reset}>重置</button></div>
     </form>
 
-    <div className="pid-list-heading"><div><strong>PID 列表</strong><span>共 {filteredRecords.length} 条</span></div><div className="pid-list-heading-actions"><label className="pid-show-all-toggle"><input type="checkbox" checked={filters.showAll} onChange={(event) => { const showAll = event.target.checked; setFilters((current) => ({ ...current, showAll })); setAppliedFilters((current) => ({ ...current, showAll })); setPage(1); }} /><span>展示全部 PID</span></label><button type="button" className="primary" onClick={openCreate}>＋ 新增 PID</button></div></div>
+    <div className="pid-list-heading"><div><strong>PID 列表</strong><span>共 {filteredRecords.length} 条</span></div><div className="pid-list-heading-actions"><label className="pid-show-all-toggle"><input type="checkbox" checked={filters.showAll} onChange={(event) => { const showAll = event.target.checked; setFilters((current) => ({ ...current, showAll })); setAppliedFilters((current) => ({ ...current, showAll })); setPage(1); }} /><span>展示全部 PID</span></label></div></div>
     <div className="table-wrap pid-management-table"><table><thead><tr><th>PID</th><th>DSP 来源</th><th>状态</th><th>平台</th><th>广告场景</th><th>广告位</th><th>应用版本</th><th>绑定分组信息</th><th>操作</th></tr></thead><tbody>
       {visibleRecords.map((record) => <tr key={record.id}><td><strong>{record.pid}</strong></td><td>{record.dspSource}</td><td><span className={`pid-status ${record.enabled ? "enabled" : "disabled"}`}>{record.enabled ? "开启" : "停用"}</span></td><td>{record.platform === "IOS" ? "iOS" : "安卓"}</td><td>{record.scene}</td><td>{record.adSlot}</td><td>{record.appVersion}</td><td>{record.groupIds.length ? <div className="bound-groups">{record.groupIds.map((groupId) => { const group = groups.find((item) => item.id === groupId); return group ? <button type="button" className={!record.enabled ? "invalid" : ""} key={groupId} onClick={() => onOpenGroup(groupId)}>{group.name}{!record.enabled ? "（失效）" : ""}</button> : null; })}</div> : "-"}</td><td><div className="pid-row-actions"><button type="button" onClick={() => openEdit(record)}>编辑</button>{record.enabled ? <button type="button" className="danger" onClick={() => setPendingDisableId(record.id)}>停用</button> : <button type="button" onClick={() => enableRecord(record)}>启用</button>}</div></td></tr>)}
       {!visibleRecords.length && <tr><td colSpan={9}><div className="empty">暂无符合筛选条件的 PID</div></td></tr>}
