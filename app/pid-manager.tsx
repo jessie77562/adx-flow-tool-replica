@@ -92,7 +92,6 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const visibleRecords = filteredRecords.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const allFilterSlots = [...new Set(PID_AD_SLOTS.map((slot) => slot.value))];
   const formSlots = PID_AD_SLOTS.filter((slot) => (!draft.scene || slot.scene === draft.scene) && (!draft.platform || slot.platform === draft.platform));
   const pendingDisable = records.find((record) => record.id === pendingDisableId);
   const groupFilterOptions = groups.map((group) => ({ value: String(group.id), label: group.name }));
@@ -163,9 +162,6 @@ export default function PidManager({ groups, onOpenGroup, onNotify }: PidManager
   return <section className="panel pid-manager-panel">
     <h1>PID 管理</h1>
     <form className="pid-filters" onSubmit={query}>
-      <label>广告场景<select aria-label="PID广告场景筛选" value={filters.scene} onChange={(event) => setFilters({ ...filters, scene: event.target.value })}><option value="">全部场景</option>{PID_SCENES.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <label>平台<select aria-label="PID平台筛选" value={filters.platform} onChange={(event) => setFilters({ ...filters, platform: event.target.value })}><option value="">全部平台</option><option value="Android">安卓</option><option value="IOS">iOS</option></select></label>
-      <label>广告位<select aria-label="PID广告位筛选" value={filters.adSlot} onChange={(event) => setFilters({ ...filters, adSlot: event.target.value })}><option value="">全部广告位</option>{allFilterSlots.map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>PID<input aria-label="PID维度筛选" value={filters.pid} placeholder="请输入 PID" onChange={(event) => setFilters({ ...filters, pid: event.target.value })} /></label>
       <MultiSelectFilter label="DSP 来源" values={filters.dspSources} options={PID_DSP_SOURCES.map((source) => ({ value: source, label: source }))} onToggle={(value) => toggleArrayFilter("dspSources", value)} onClear={() => setFilters((current) => ({ ...current, dspSources: [] }))} />
       <MultiSelectFilter label="分组" values={filters.groupIds} options={groupFilterOptions} onToggle={(value) => toggleArrayFilter("groupIds", value)} onClear={() => setFilters((current) => ({ ...current, groupIds: [] }))} />
